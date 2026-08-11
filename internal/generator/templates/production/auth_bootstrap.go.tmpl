@@ -1,0 +1,30 @@
+package bootstrap
+
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"{{.Config.Project.Module}}/internal/application"
+	"{{.Config.Project.Module}}/internal/config"
+	infraauth "{{.Config.Project.Module}}/internal/infrastructure/auth"
+	httpserver "{{.Config.Project.Module}}/internal/infrastructure/http"
+	"{{.Config.Project.Module}}/internal/infrastructure/persistence/postgres"
+)
+
+type authComponents struct {
+	Public httpserver.RouteRegistrar
+	Authenticate func(http.Handler) http.Handler
+	RequireRoles func(...string) func(http.Handler) http.Handler
+}
+
+func buildAuth(pool *pgxpool.Pool,cfg config.Config)(authComponents,error){
+	tokens,err:=infraauth.NewJWTManager(cfg.Auth.JWTSecret,cfg.Auth.Issuer,cfg.Auth.Audience,cfg.Auth.AccessTokenTTL);if err!=nil{return authComponents{},fmt.Errorf("create JWT manager: %w",err)}
+	repository:=postgres.NewAuthRepository(pool)
+	service:=application.NewAuthService(repository,infraauth.BcryptVerifier{},tokens,cfg.Auth.RefreshTokenTTL)
+	handler:=httpserver.NewAuthHandler(service,cfg.Auth.CookieSecure,cfg.Auth.RefreshTokenTTL)
+	middleware:=httpserver.NewAuthMiddleware(tokens)
+	return authComponents{Public:func(router chi.Router){handler.RegisterRoutes(router)},Authenticate:middleware.Authenticate,RequireRoles:middleware.RequireRoles},nil
+}

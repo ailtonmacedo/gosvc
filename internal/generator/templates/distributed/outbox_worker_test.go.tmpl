@@ -1,0 +1,66 @@
+package application
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+
+	"{{.Config.Project.Module}}/internal/domain"
+)
+
+type fakeOutboxRepository struct {
+	events      []domain.Event
+	claimErr    error
+	published   []uuid.UUID
+	failed      []uuid.UUID
+	terminal    []bool
+	markFailErr error
+}
+
+func (f *fakeOutboxRepository) Enqueue(context.Context, domain.Event) error { return nil }
+func (f *fakeOutboxRepository) ClaimBatch(context.Context, int) ([]domain.Event, error) { return f.events, f.claimErr }
+func (f *fakeOutboxRepository) MarkPublished(_ context.Context, id uuid.UUID) error { f.published = append(f.published, id); return nil }
+func (f *fakeOutboxRepository) MarkFailed(_ context.Context, id uuid.UUID, _ string, terminal bool) error { f.failed = append(f.failed, id); f.terminal = append(f.terminal, terminal); return f.markFailErr }
+
+type fakePublisher struct { err error; topics []string }
+func (f *fakePublisher) Publish(_ context.Context, topic, _ string, _ []byte) error { f.topics = append(f.topics, topic); return f.err }
+
+func TestOutboxWorkerProcessBatch(t *testing.T) {
+	t.Parallel()
+	id := uuid.New()
+	tests := []struct {
+		name          string
+		event         domain.Event
+		publishErr    error
+		wantPublished int
+		wantFailed    int
+		wantTopic     string
+	}{
+		{name: "publishes event", event: domain.Event{ID: id, Topic: "orders", AggregateID: "1"}, wantPublished: 1, wantTopic: "orders"},
+		{name: "records retryable failure", event: domain.Event{ID: id, Topic: "orders", AggregateID: "1"}, publishErr: errors.New("broker unavailable"), wantFailed: 1, wantTopic: "orders"},
+		{name: "uses dead-letter topic", event: domain.Event{ID: id, Topic: "orders", AggregateID: "1", Attempts: 2}, wantFailed: 1, wantTopic: "orders.dlq"},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			repository := &fakeOutboxRepository{events: []domain.Event{test.event}}
+			publisher := &fakePublisher{err: test.publishErr}
+			worker := NewOutboxWorker(repository, publisher, OutboxWorkerConfig{PollInterval: time.Second, BatchSize: 10, MaxAttempts: 3, DLQSuffix: ".dlq"}, nil)
+			count, _ := worker.ProcessBatch(context.Background())
+			if count != 1 { t.Fatalf("count=%d", count) }
+			if len(repository.published) != test.wantPublished { t.Fatalf("published=%d", len(repository.published)) }
+			if len(repository.failed) != test.wantFailed { t.Fatalf("failed=%d", len(repository.failed)) }
+			if len(publisher.topics) != 1 || publisher.topics[0] != test.wantTopic { t.Fatalf("topics=%v", publisher.topics) }
+		})
+	}
+}
+
+func TestOutboxWorkerValidation(t *testing.T) {
+	t.Parallel()
+	worker := NewOutboxWorker(nil, nil, OutboxWorkerConfig{}, nil)
+	if _, err := worker.ProcessBatch(context.Background()); err == nil { t.Fatal("expected validation error") }
+}

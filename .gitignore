@@ -1,0 +1,11 @@
+/bin/
+/dist/
+/tmp/
+coverage.out
+.env
+.idea/
+.vscode/
+.DS_Store
+
+# CI-generated certification evidence (never commit stale reports)
+/artifacts/

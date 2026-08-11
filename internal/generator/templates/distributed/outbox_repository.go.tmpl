@@ -1,0 +1,52 @@
+package postgres
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"{{.Config.Project.Module}}/internal/domain"
+)
+
+type outboxDB interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}
+
+type OutboxRepository struct { db outboxDB }
+func NewOutboxRepository(db outboxDB) *OutboxRepository { return &OutboxRepository{db: db} }
+
+func (r *OutboxRepository) Enqueue(ctx context.Context, event domain.Event) error {
+	_, err := r.db.Exec(ctx, `INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, topic, payload, occurred_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, event.ID, event.AggregateType, event.AggregateID, event.Type, event.Topic, event.Payload, event.OccurredAt)
+	if err != nil { return fmt.Errorf("enqueue outbox event: %w", err) }
+	return nil
+}
+
+func (r *OutboxRepository) ClaimBatch(ctx context.Context, limit int) ([]domain.Event, error) {
+	rows, err := r.db.Query(ctx, `UPDATE outbox_events SET locked_at = NOW(), attempts = attempts + 1 WHERE id IN (SELECT id FROM outbox_events WHERE published_at IS NULL AND failed_at IS NULL AND (locked_at IS NULL OR locked_at < NOW() - INTERVAL '5 minutes') ORDER BY occurred_at LIMIT $1 FOR UPDATE SKIP LOCKED) RETURNING id, aggregate_type, aggregate_id, event_type, topic, payload, occurred_at, attempts`, limit)
+	if err != nil { return nil, fmt.Errorf("claim outbox events: %w", err) }
+	defer rows.Close()
+	var events []domain.Event
+	for rows.Next() {
+		var event domain.Event
+		if err := rows.Scan(&event.ID, &event.AggregateType, &event.AggregateID, &event.Type, &event.Topic, &event.Payload, &event.OccurredAt, &event.Attempts); err != nil { return nil, fmt.Errorf("scan outbox event: %w", err) }
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil { return nil, fmt.Errorf("iterate outbox events: %w", err) }
+	return events, nil
+}
+
+func (r *OutboxRepository) MarkPublished(ctx context.Context, id uuid.UUID) error {
+	_, err := r.db.Exec(ctx, `UPDATE outbox_events SET published_at = NOW(), locked_at = NULL, last_error = NULL WHERE id = $1`, id)
+	if err != nil { return fmt.Errorf("mark outbox event published: %w", err) }
+	return nil
+}
+
+func (r *OutboxRepository) MarkFailed(ctx context.Context, id uuid.UUID, cause string, terminal bool) error {
+	_, err := r.db.Exec(ctx, `UPDATE outbox_events SET locked_at = NULL, last_error = $2, failed_at = CASE WHEN $3 THEN NOW() ELSE failed_at END WHERE id = $1`, id, cause, terminal)
+	if err != nil { return fmt.Errorf("mark outbox event failed: %w", err) }
+	return nil
+}

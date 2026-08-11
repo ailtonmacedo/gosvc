@@ -1,0 +1,12 @@
+/bin/
+/dist/
+/tmp/
+coverage.out
+.env
+.idea/
+.vscode/
+.DS_Store
+{{if eq .Preset.Name "event-driven-api"}}deployments/k8s/11-secret.yaml
+{{end}}
+
+.gosvc/backups/

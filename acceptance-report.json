@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-06T15:04:42.291288005Z",
+  "presets": [
+    {
+      "preset": "event-driven-api",
+      "project": "acceptance-event-driven-api",
+      "files": 103,
+      "resources": 2,
+      "architecture_files": 16,
+      "first_generation_changes": 89,
+      "second_generation_changes": 0,
+      "resource_changes": 17,
+      "checks": [
+        "initial-generation",
+        "resource-generation",
+        "resource-idempotency",
+        "project-validation",
+        "architecture-boundaries",
+        "project-idempotency"
+      ],
+      "status": "pass",
+      "duration_ms": 82
+    },
+    {
+      "preset": "minimal-api",
+      "project": "acceptance-minimal-api",
+      "files": 21,
+      "resources": 0,
+      "architecture_files": 2,
+      "first_generation_changes": 20,
+      "second_generation_changes": 0,
+      "checks": [
+        "initial-generation",
+        "project-validation",
+        "architecture-boundaries",
+        "project-idempotency"
+      ],
+      "status": "pass",
+      "duration_ms": 7
+    },
+    {
+      "preset": "postgres-api",
+      "project": "acceptance-postgres-api",
+      "files": 59,
+      "resources": 2,
+      "architecture_files": 10,
+      "first_generation_changes": 45,
+      "second_generation_changes": 0,
+      "resource_changes": 17,
+      "checks": [
+        "initial-generation",
+        "resource-generation",
+        "resource-idempotency",
+        "project-validation",
+        "architecture-boundaries",
+        "project-idempotency"
+      ],
+      "status": "pass",
+      "duration_ms": 42
+    },
+    {
+      "preset": "production-api",
+      "project": "acceptance-production-api",
+      "files": 81,
+      "resources": 2,
+      "architecture_files": 13,
+      "first_generation_changes": 67,
+      "second_generation_changes": 0,
+      "resource_changes": 17,
+      "checks": [
+        "initial-generation",
+        "resource-generation",
+        "resource-idempotency",
+        "project-validation",
+        "architecture-boundaries",
+        "project-idempotency"
+      ],
+      "status": "pass",
+      "duration_ms": 66
+    }
+  ],
+  "passed": 4,
+  "failed": 0,
+  "duration_ms": 200
+}

@@ -1,0 +1,27 @@
+package kafka
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/twmb/franz-go/pkg/kgo"
+)
+
+type Publisher struct { client *kgo.Client }
+
+func OpenPublisher(brokers []string) (*Publisher, error) {
+	if len(brokers) == 0 { return nil, errors.New("at least one Kafka broker is required") }
+	client, err := kgo.NewClient(kgo.SeedBrokers(brokers...))
+	if err != nil { return nil, fmt.Errorf("create Kafka client: %w", err) }
+	return &Publisher{client: client}, nil
+}
+
+func (p *Publisher) Ping(ctx context.Context) error { return p.client.Ping(ctx) }
+func (p *Publisher) Close() { p.client.Close() }
+func (p *Publisher) Publish(ctx context.Context, topic, key string, payload []byte) error {
+	if topic == "" { return errors.New("kafka topic is required") }
+	result := p.client.ProduceSync(ctx, &kgo.Record{Topic: topic, Key: []byte(key), Value: payload})
+	if err := result.FirstErr(); err != nil { return fmt.Errorf("publish Kafka record: %w", err) }
+	return nil
+}

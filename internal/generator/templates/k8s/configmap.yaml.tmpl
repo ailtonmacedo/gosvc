@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{.Config.Project.Name}}-config
+  namespace: {{.Config.Deployment.Namespace}}
+data:
+  APP_ENV: production
+  HTTP_PORT: "{{.Config.API.Port}}"
+  JWT_ISSUER: {{.Config.Auth.AccessToken.Issuer}}
+  JWT_AUDIENCE: {{.Config.Auth.AccessToken.Audience}}
+  REDIS_ADDRESS: redis:6379
+  KAFKA_BROKERS: kafka:9092
+  KAFKA_TOPIC_PREFIX: {{.Config.Messaging.TopicPrefix}}
+  KAFKA_CONSUMER_GROUP: {{.Config.Messaging.ConsumerGroup}}
+  KAFKA_MAX_RETRIES: "{{.Config.Messaging.MaxRetries}}"
+  KAFKA_RETRY_BACKOFF: {{.Config.Messaging.RetryBackoff}}
+  KAFKA_DLQ_SUFFIX: {{.Config.Messaging.DLQSuffix}}
+  OUTBOX_POLL_INTERVAL: {{.Config.Outbox.PollInterval}}
+  OUTBOX_BATCH_SIZE: "{{.Config.Outbox.BatchSize}}"
+  OUTBOX_MAX_ATTEMPTS: "{{.Config.Outbox.MaxAttempts}}"
+  OTEL_TRACING_ENABLED: "true"
+  OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
+  OTEL_EXPORTER_OTLP_INSECURE: "true"

@@ -1,0 +1,11 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{.Config.Project.Name}}-api-ingress
+  namespace: {{.Config.Deployment.Namespace}}
+spec:
+  podSelector:
+    matchLabels: { app: {{.Config.Project.Name}}, component: api }
+  policyTypes: [Ingress]
+  ingress:
+    - ports: [{ protocol: TCP, port: {{.Config.API.Port}} }]

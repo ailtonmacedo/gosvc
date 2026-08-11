@@ -1,0 +1,86 @@
+package postgres
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/jackc/pgx/v5"
+
+	"{{.Config.Project.Module}}/internal/domain"
+	dbgen "{{.Config.Project.Module}}/internal/generated/sqlc"
+	"{{.Config.Project.Module}}/internal/ports"
+)
+
+var _ ports.OrderRepository = (*OrderRepository)(nil)
+
+type OrderRepository struct {
+	queries *dbgen.Queries
+}
+
+func NewOrderRepository(db dbgen.DBTX) *OrderRepository {
+	return &OrderRepository{queries: dbgen.New(db)}
+}
+
+func (r *OrderRepository) Create(ctx context.Context, order domain.Order) (domain.Order, error) {
+	created, err := r.queries.CreateOrder(ctx, dbgen.CreateOrderParams{Status: order.Status, TotalCents: order.TotalCents})
+	if err != nil {
+		return domain.Order{}, fmt.Errorf("insert order: %w", err)
+	}
+	return toDomain(created), nil
+}
+
+func (r *OrderRepository) GetByID(ctx context.Context, id int64) (domain.Order, error) {
+	order, err := r.queries.GetOrder(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Order{}, domain.ErrOrderNotFound
+	}
+	if err != nil {
+		return domain.Order{}, fmt.Errorf("select order %d: %w", id, err)
+	}
+	return toDomain(order), nil
+}
+
+func (r *OrderRepository) List(ctx context.Context, limit, offset int32) ([]domain.Order, error) {
+	orders, err := r.queries.ListOrders(ctx, dbgen.ListOrdersParams{Limit: limit, Offset: offset})
+	if err != nil {
+		return nil, fmt.Errorf("list orders: %w", err)
+	}
+	result := make([]domain.Order, 0, len(orders))
+	for _, order := range orders {
+		result = append(result, toDomain(order))
+	}
+	return result, nil
+}
+
+func (r *OrderRepository) Update(ctx context.Context, order domain.Order) (domain.Order, error) {
+	updated, err := r.queries.UpdateOrder(ctx, dbgen.UpdateOrderParams{ID: order.ID, Status: order.Status, TotalCents: order.TotalCents})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Order{}, domain.ErrOrderNotFound
+	}
+	if err != nil {
+		return domain.Order{}, fmt.Errorf("update order %d: %w", order.ID, err)
+	}
+	return toDomain(updated), nil
+}
+
+func (r *OrderRepository) Delete(ctx context.Context, id int64) error {
+	_, err := r.queries.DeleteOrder(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.ErrOrderNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("delete order %d: %w", id, err)
+	}
+	return nil
+}
+
+func toDomain(order dbgen.Order) domain.Order {
+	return domain.Order{
+		ID: order.ID,
+		Status: order.Status,
+		TotalCents: order.TotalCents,
+		CreatedAt: timeFromDB(order.CreatedAt),
+		UpdatedAt: timeFromDB(order.UpdatedAt),
+	}
+}

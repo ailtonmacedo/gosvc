@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": 1,
+  "gosvc_release_line": "1.x",
+  "contracts": {
+    "project_config": 1,
+    "manifest": 3,
+    "plugin_manifest": 2,
+    "plugin_protocol": 1,
+    "resource_registry": 1,
+    "acceptance_report": 1,
+    "upgrade_backup": 1,
+    "certification_report": 1
+  },
+  "presets": [
+    "minimal-api",
+    "postgres-api",
+    "production-api",
+    "event-driven-api"
+  ],
+  "release_platforms": {
+    "linux": [
+      "amd64",
+      "arm64"
+    ],
+    "darwin": [
+      "amd64",
+      "arm64"
+    ],
+    "windows": [
+      "amd64",
+      "arm64"
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+package ports
+
+import (
+	"context"
+	"time"
+
+	"{{.Config.Project.Module}}/internal/domain"
+)
+
+type AuthRepository interface {
+	FindUserByEmail(context.Context, string) (domain.AuthUser, error)
+	CreateSession(context.Context, domain.AuthSession) error
+	RotateSession(context.Context, []byte, domain.AuthSession) (domain.AuthUser, error)
+	RevokeSession(context.Context, []byte) error
+}
+
+type PasswordVerifier interface { Compare(string, string) error }
+
+type TokenManager interface {
+	IssueAccessToken(domain.AuthUser) (string, time.Time, error)
+	ParseAccessToken(string) (domain.Principal, error)
+	NewRefreshToken() (string, []byte, error)
+	HashRefreshToken(string) ([]byte, error)
+}

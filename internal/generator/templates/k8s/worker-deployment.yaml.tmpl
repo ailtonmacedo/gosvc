@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Config.Project.Name}}-worker
+  namespace: {{.Config.Deployment.Namespace}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: {{.Config.Project.Name}}, component: worker }
+  template:
+    metadata:
+      labels: { app: {{.Config.Project.Name}}, component: worker }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: worker
+          image: ghcr.io/replace/{{.Config.Project.Name}}:latest
+          command: ["/app/{{.Config.Project.Name}}-worker"]
+          envFrom:
+            - configMapRef: { name: {{.Config.Project.Name}}-config }
+            - secretRef: { name: {{.Config.Project.Name}}-secrets }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ["ALL"] } }
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { cpu: 300m, memory: 384Mi }

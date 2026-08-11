@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          # Generated database-backed presets require Go 1.25 for real certification.
+          go-version: '1.25.x'
+          cache: true
+      - name: Resolve version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      - name: Install real certification tools
+        run: |
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
+          go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+          go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Quality gates
+        run: |
+          make verify
+          go test -race ./...
+      - name: Release preflight
+        run: go run ./cmd/gosvc release check --version "$VERSION"
+      - name: Real integration and E2E certification
+        run: |
+          set -o pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          go run ./cmd/gosvc certify --mode real --require-real --timeout 4m --json | tee artifacts/certification-real.json
+      - name: Upload certification evidence
+        uses: actions/upload-artifact@v6
+        with:
+          name: certification-${{ env.VERSION }}
+          path: artifacts/certification-real.json
+      - name: Build deterministic assets
+        run: |
+          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          go run ./cmd/gosvc release snapshot --version "$VERSION" --output dist --parallel 3
+      - name: Verify release assets offline
+        run: go run ./cmd/gosvc release verify --dist dist
+      - name: Smoke test rendered installer
+        run: |
+          python3 -m http.server 18080 --directory dist >/tmp/gosvc-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID"' EXIT
+          sleep 1
+          GOSVC_RELEASE_BASE_URL=http://127.0.0.1:18080 \
+          GOSVC_INSTALL_DIR="$RUNNER_TEMP/gosvc-bin" \
+          sh dist/install.sh "$VERSION"
+          "$RUNNER_TEMP/gosvc-bin/gosvc" version | grep "gosvc version $VERSION"
+      - name: Attest build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+            dist/release-manifest.json
+            dist/release-evidence.json
+            dist/RELEASE_NOTES.md
+      - name: Attest SBOM
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+          sbom-path: dist/gosvc_${{ env.VERSION }}_sbom.spdx.json
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --verify-tag \
+            --title "gosvc $VERSION" \
+            --notes-file dist/RELEASE_NOTES.md

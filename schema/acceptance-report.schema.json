@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ailtonmacedo/gosvc/schema/acceptance-report.schema.json",
+  "title": "gosvc acceptance report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "presets",
+    "passed",
+    "failed",
+    "duration_ms"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "work_dir": {
+      "type": "string"
+    },
+    "passed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "presets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/preset_result"
+      }
+    }
+  },
+  "$defs": {
+    "preset_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preset",
+        "project",
+        "files",
+        "resources",
+        "architecture_files",
+        "first_generation_changes",
+        "second_generation_changes",
+        "checks",
+        "status",
+        "duration_ms"
+      ],
+      "properties": {
+        "preset": { "type": "string" },
+        "project": { "type": "string" },
+        "files": { "type": "integer", "minimum": 0 },
+        "resources": { "type": "integer", "minimum": 0 },
+        "architecture_files": { "type": "integer", "minimum": 0 },
+        "first_generation_changes": { "type": "integer", "minimum": 0 },
+        "second_generation_changes": { "type": "integer", "minimum": 0 },
+        "resource_changes": { "type": "integer", "minimum": 0 },
+        "second_resource_changes": { "type": "integer", "minimum": 0 },
+        "checks": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "status": {
+          "enum": ["pass", "fail"]
+        },
+        "error": { "type": "string" },
+        "duration_ms": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

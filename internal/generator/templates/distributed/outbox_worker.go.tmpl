@@ -1,0 +1,104 @@
+package application
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"{{.Config.Project.Module}}/internal/domain"
+	"{{.Config.Project.Module}}/internal/ports"
+)
+
+type OutboxWorkerConfig struct {
+	PollInterval time.Duration
+	BatchSize    int
+	MaxAttempts  int
+	DLQSuffix    string
+}
+
+type OutboxWorker struct {
+	repository ports.OutboxRepository
+	publisher  ports.EventPublisher
+	config     OutboxWorkerConfig
+	logger     *slog.Logger
+}
+
+func NewOutboxWorker(repository ports.OutboxRepository, publisher ports.EventPublisher, config OutboxWorkerConfig, logger *slog.Logger) *OutboxWorker {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &OutboxWorker{repository: repository, publisher: publisher, config: config, logger: logger}
+}
+
+func (w *OutboxWorker) Run(ctx context.Context) error {
+	if err := w.validate(); err != nil {
+		return err
+	}
+	ticker := time.NewTicker(w.config.PollInterval)
+	defer ticker.Stop()
+	for {
+		if _, err := w.ProcessBatch(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			w.logger.Error("outbox batch failed", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (w *OutboxWorker) ProcessBatch(ctx context.Context) (int, error) {
+	if err := w.validate(); err != nil {
+		return 0, err
+	}
+	events, err := w.repository.ClaimBatch(ctx, w.config.BatchSize)
+	if err != nil {
+		return 0, fmt.Errorf("claim outbox batch: %w", err)
+	}
+	var failures []error
+	for _, event := range events {
+		if err := w.publish(ctx, event); err != nil {
+			failures = append(failures, err)
+		}
+	}
+	return len(events), errors.Join(failures...)
+}
+
+func (w *OutboxWorker) publish(ctx context.Context, event domain.Event) error {
+	topic := event.Topic
+	terminal := event.Attempts+1 >= w.config.MaxAttempts
+	if terminal {
+		topic += w.config.DLQSuffix
+	}
+	if err := w.publisher.Publish(ctx, topic, event.AggregateID, event.Payload); err != nil {
+		markErr := w.repository.MarkFailed(ctx, event.ID, err.Error(), terminal)
+		return errors.Join(fmt.Errorf("publish event %s: %w", event.ID, err), markErr)
+	}
+	if terminal {
+		return w.repository.MarkFailed(ctx, event.ID, "published to dead-letter topic", true)
+	}
+	if err := w.repository.MarkPublished(ctx, event.ID); err != nil {
+		return fmt.Errorf("mark event %s published: %w", event.ID, err)
+	}
+	return nil
+}
+
+func (w *OutboxWorker) validate() error {
+	var errs []error
+	if w.repository == nil {
+		errs = append(errs, errors.New("outbox repository is required"))
+	}
+	if w.publisher == nil {
+		errs = append(errs, errors.New("event publisher is required"))
+	}
+	if w.config.PollInterval <= 0 || w.config.BatchSize <= 0 || w.config.MaxAttempts <= 0 {
+		errs = append(errs, errors.New("outbox worker configuration must be greater than zero"))
+	}
+	if w.config.DLQSuffix == "" {
+		errs = append(errs, errors.New("dead-letter suffix is required"))
+	}
+	return errors.Join(errs...)
+}

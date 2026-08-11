@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ailtonmacedo/gosvc/schema/github-publication-plan.schema.json",
+  "title": "gosvc GitHub Publication Plan",
+  "type": "object",
+  "required": ["schema_version", "repository", "module", "version", "checks", "steps", "passed", "warnings", "failed"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "repository": {"type": "string", "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$"},
+    "module": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"},
+    "git_origin": {"type": "string"},
+    "current_branch": {"type": "string"},
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "status", "detail"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "status": {"enum": ["pass", "warn", "fail"]},
+          "detail": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["order", "description", "command"],
+        "properties": {
+          "order": {"type": "integer", "minimum": 1},
+          "description": {"type": "string", "minLength": 1},
+          "command": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "passed": {"type": "integer", "minimum": 0},
+    "warnings": {"type": "integer", "minimum": 0},
+    "failed": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

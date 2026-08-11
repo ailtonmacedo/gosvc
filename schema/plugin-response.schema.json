@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gosvc.dev/schema/plugin-response-v1.json",
+  "title": "gosvc plugin response protocol",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version"],
+  "properties": {
+    "protocol_version": {"const": 1},
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "message"],
+        "properties": {
+          "severity": {"enum": ["info", "warning", "error"]},
+          "message": {"type": "string", "minLength": 1},
+          "path": {"type": "string"}
+        }
+      }
+    },
+    "contribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "features": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "content", "mode", "ownership"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "content": {"type": "string"},
+              "encoding": {"enum": ["plain", "base64"]},
+              "mode": {"type": "integer", "minimum": 1, "maximum": 511},
+              "ownership": {"enum": ["generated", "user"]}
+            }
+          }
+        }
+      }
+    }
+  }
+}

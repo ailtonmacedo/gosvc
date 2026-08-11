@@ -1,0 +1,68 @@
+// Package httpserver contains HTTP delivery adapters.
+package httpserver
+
+import (
+	"context"
+	"encoding/json"
+{{if .Config.OpenAPI.Enabled}}	"fmt"
+{{end}}{{if or (eq .Preset.Name "production-api") (eq .Preset.Name "event-driven-api")}}	"log/slog"
+{{end}}	"net/http"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+{{if .Config.OpenAPI.Enabled}}	oapimiddleware "github.com/oapi-codegen/nethttp-middleware"
+
+	openapi "{{.Config.Project.Module}}/internal/generated/openapi"
+{{end}}{{if or (eq .Preset.Name "production-api") (eq .Preset.Name "event-driven-api")}}	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+{{end}}	"{{.Config.Project.Module}}/internal/config"
+)
+
+type ReadinessCheck func(context.Context) error
+type RouteRegistrar func(chi.Router)
+
+func NewRouter(cfg config.Config, readiness ReadinessCheck, register RouteRegistrar) (http.Handler, error) {
+	router := chi.NewRouter()
+	router.Use(middleware.RequestID)
+	router.Use(middleware.Recoverer)
+	router.Use(middleware.Timeout(cfg.HTTP.WriteTimeout))
+	router.Use(maxBody(cfg.HTTP.MaxBodySize))
+	router.Use(securityHeaders)
+{{if or (eq .Preset.Name "production-api") (eq .Preset.Name "event-driven-api")}}	router.Use(requestLogging(slog.Default()))
+	if cfg.Observability.TracingEnabled { router.Use(otelhttp.NewMiddleware("http.server")) }
+	if cfg.RateLimit.Enabled && cfg.RateLimit.Key != "user" { router.Use(NewLocalRateLimiter(cfg.RateLimit).Middleware) }
+	if cfg.Observability.MetricsEnabled { metrics, handler := NewHTTPMetrics(); router.Use(metrics.Middleware); router.Get(cfg.Observability.MetricsEndpoint, handler.ServeHTTP) }
+{{end}}
+	router.Get("/health/live", func(writer http.ResponseWriter, _ *http.Request) {
+		WriteJSON(writer, http.StatusOK, map[string]string{"status": "alive"})
+	})
+	router.Get("/health/ready", func(writer http.ResponseWriter, request *http.Request) {
+		ctx, cancel := context.WithTimeout(request.Context(), minDuration(cfg.HTTP.ReadTimeout, 3*time.Second))
+		defer cancel()
+		if readiness != nil {
+			if err := readiness(ctx); err != nil { WriteJSON(writer, http.StatusServiceUnavailable, map[string]string{"status": "not_ready"}); return }
+		}
+		WriteJSON(writer, http.StatusOK, map[string]string{"status": "ready"})
+	})
+{{if .Config.OpenAPI.Enabled}}
+	router.Get("/openapi.yaml", func(writer http.ResponseWriter, _ *http.Request) { writer.Header().Set("Content-Type", "application/yaml"); _, _ = writer.Write(openapi.RawSpec()) })
+	router.Get("/docs", serveRedoc)
+
+	spec, err := openapi.GetSwagger()
+	if err != nil { return nil, fmt.Errorf("load OpenAPI contract: %w", err) }
+	spec.Servers = nil
+	router.Group(func(api chi.Router) {
+{{if .Config.OpenAPI.RequestValidation}}		api.Use(oapimiddleware.OapiRequestValidatorWithOptions(spec, &oapimiddleware.Options{DoNotValidateServers: true, ErrorHandlerWithOpts: func(_ context.Context, _ error, writer http.ResponseWriter, request *http.Request, options oapimiddleware.ErrorHandlerOpts) { WriteJSON(writer, options.StatusCode, map[string]string{"code": "openapi_validation_failed", "message": "Request does not match the OpenAPI contract.", "request_id": middleware.GetReqID(request.Context())}) }}))
+{{end}}		if register != nil { register(api) }
+	})
+{{else}}
+	if register != nil { router.Group(register) }
+{{end}}	return router, nil
+}
+
+{{if .Config.OpenAPI.Enabled}}func serveRedoc(writer http.ResponseWriter, _ *http.Request) { writer.Header().Set("Content-Type", "text/html; charset=utf-8"); _, _ = writer.Write([]byte(`<!doctype html><html><head><title>API Docs</title><meta charset="utf-8"></head><body><redoc spec-url="/openapi.yaml"></redoc><script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script></body></html>`)) }
+{{end}}func maxBody(limit int64) func(http.Handler) http.Handler { return func(next http.Handler) http.Handler { return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) { request.Body = http.MaxBytesReader(writer, request.Body, limit); next.ServeHTTP(writer, request) }) } }
+func securityHeaders(next http.Handler) http.Handler { return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) { writer.Header().Set("X-Content-Type-Options", "nosniff"); writer.Header().Set("X-Frame-Options", "DENY"); writer.Header().Set("Referrer-Policy", "no-referrer"); next.ServeHTTP(writer, request) }) }
+func WriteJSON(writer http.ResponseWriter, status int, payload any) { writer.Header().Set("Content-Type", "application/json"); writer.WriteHeader(status); _ = json.NewEncoder(writer).Encode(payload) }
+{{if .Config.OpenAPI.Enabled}}func writeJSON(writer http.ResponseWriter, status int, payload any) { WriteJSON(writer,status,payload) }
+{{end}}func minDuration(left, right time.Duration) time.Duration { if left < right { return left }; return right }

@@ -1,0 +1,19 @@
+package httpserver
+
+import (
+	"net"
+	"net/http"
+	"strconv"
+	"sync"
+	"time"
+
+	"golang.org/x/time/rate"
+
+	"{{.Config.Project.Module}}/internal/config"
+)
+
+type limiterEntry struct{ limiter *rate.Limiter; lastSeen time.Time }
+type LocalRateLimiter struct{ mu sync.Mutex; entries map[string]*limiterEntry; limit rate.Limit; burst int; key string; entryTTL,cleanupInterval time.Duration; lastCleanup time.Time }
+func NewLocalRateLimiter(cfg config.RateLimitConfig)*LocalRateLimiter{return &LocalRateLimiter{entries:make(map[string]*limiterEntry),limit:rate.Limit(cfg.RequestsPerSecond),burst:cfg.Burst,key:cfg.Key,entryTTL:cfg.EntryTTL,cleanupInterval:cfg.CleanupInterval,lastCleanup:time.Now()}}
+func(l *LocalRateLimiter)Middleware(next http.Handler)http.Handler{return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){now:=time.Now();key:=l.requestKey(r);l.mu.Lock();if now.Sub(l.lastCleanup)>=l.cleanupInterval{for value,entry:=range l.entries{if now.Sub(entry.lastSeen)>l.entryTTL{delete(l.entries,value)}};l.lastCleanup=now};entry:=l.entries[key];if entry==nil{entry=&limiterEntry{limiter:rate.NewLimiter(l.limit,l.burst)};l.entries[key]=entry};entry.lastSeen=now;allowed:=entry.limiter.Allow();l.mu.Unlock();w.Header().Set("X-RateLimit-Limit",strconv.Itoa(l.burst));if !allowed{w.Header().Set("Retry-After","1");writeAPIError(w,r,http.StatusTooManyRequests,"rate_limit_exceeded","Too many requests.");return};next.ServeHTTP(w,r)})}
+func(l *LocalRateLimiter)requestKey(r *http.Request)string{if l.key=="user"{if principal,ok:=PrincipalFromContext(r.Context());ok{return principal.UserID.String()}};host,_,err:=net.SplitHostPort(r.RemoteAddr);if err==nil&&host!=""{return host};if r.RemoteAddr!=""{return r.RemoteAddr};return "unknown"}

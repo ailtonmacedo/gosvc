@@ -1,0 +1,47 @@
+// Package bootstrap composes application dependencies and owns lifecycle.
+package bootstrap
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+
+{{if or (eq .Preset.Name "production-api") (eq .Preset.Name "event-driven-api")}}	"github.com/go-chi/chi/v5"
+{{end}}
+	"{{.Config.Project.Module}}/internal/config"
+	httpserver "{{.Config.Project.Module}}/internal/infrastructure/http"
+{{if ne .Preset.Name "minimal-api"}}	"{{.Config.Project.Module}}/internal/infrastructure/persistence/postgres"
+{{end}}{{if or (eq .Preset.Name "production-api") (eq .Preset.Name "event-driven-api")}}	"{{.Config.Project.Module}}/internal/observability"
+{{end}})
+
+type BuildInfo struct { Version, Commit, Time string }
+
+func Run(parent context.Context, build BuildInfo) error {
+	cfg, err := config.Load(); if err != nil { return fmt.Errorf("load configuration: %w", err) }
+	var handler slog.Handler = slog.NewTextHandler(os.Stdout,nil); if cfg.Environment == "production" { handler = slog.NewJSONHandler(os.Stdout,nil) }
+	logger := slog.New(handler).With("service",cfg.AppName,"environment",cfg.Environment,"version",build.Version,"commit",build.Commit); slog.SetDefault(logger)
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM); defer stop()
+
+{{if or (eq .Preset.Name "production-api") (eq .Preset.Name "event-driven-api")}}	traceShutdown,err:=observability.SetupTracing(ctx,cfg);if err!=nil{return err}
+	admin:=observability.NewAdminServer(cfg.Pprof);var adminErr <-chan error;if admin!=nil{adminErr=admin.Start(logger)}
+{{end}}{{if eq .Preset.Name "minimal-api"}}	readiness := httpserver.ReadinessCheck(func(context.Context) error { return nil })
+{{else}}	pool, err := postgres.OpenPool(ctx, cfg.Database); if err != nil { return err }; defer pool.Close()
+	readiness := httpserver.ReadinessCheck(pool.Ping)
+{{if eq .Preset.Name "postgres-api"}}	register := buildAPIRoutes(pool)
+{{else}}	auth,err:=buildAuth(pool,cfg);if err!=nil{return err};resources:=buildAPIRoutes(pool)
+	register := httpserver.RouteRegistrar(func(router chi.Router){auth.Public(router);router.Group(func(protected chi.Router){protected.Use(auth.Authenticate);if cfg.RateLimit.Enabled&&cfg.RateLimit.Key=="user"{protected.Use(httpserver.NewLocalRateLimiter(cfg.RateLimit).Middleware)};resources(protected);protected.Group(func(admin chi.Router){admin.Use(auth.RequireRoles("admin"));admin.Get("/admin/ping",func(w http.ResponseWriter,_ *http.Request){httpserver.WriteJSON(w,http.StatusOK,map[string]string{"status":"ok"})})})})})
+{{end}}{{end}}{{if eq .Preset.Name "minimal-api"}}	router, err := httpserver.NewRouter(cfg, readiness, nil); if err != nil { return err }
+{{else}}	router, err := httpserver.NewRouter(cfg, readiness, register); if err != nil { return err }
+{{end}}	server := &http.Server{Addr:cfg.HTTP.Address,Handler:router,ReadTimeout:cfg.HTTP.ReadTimeout,WriteTimeout:cfg.HTTP.WriteTimeout,IdleTimeout:cfg.HTTP.IdleTimeout}
+	serverErr:=make(chan error,1);go func(){logger.Info("http server started","address",cfg.HTTP.Address,"build_time",build.Time);err:=server.ListenAndServe();if err!=nil&&!errors.Is(err,http.ErrServerClosed){serverErr<-fmt.Errorf("serve HTTP: %w",err)};close(serverErr)}()
+	select { case err:=<-serverErr:return err;{{if or (eq .Preset.Name "production-api") (eq .Preset.Name "event-driven-api")}} case err:=<-adminErr:if err!=nil{return fmt.Errorf("serve admin HTTP: %w",err)};{{end}} case <-ctx.Done(): }
+	shutdownCtx,cancel:=context.WithTimeout(context.Background(),cfg.HTTP.ShutdownTimeout);defer cancel()
+	shutdownErr:=server.Shutdown(shutdownCtx);serveErr:=<-serverErr
+{{if or (eq .Preset.Name "production-api") (eq .Preset.Name "event-driven-api")}}	adminShutdownErr:=admin.Shutdown(shutdownCtx);traceErr:=traceShutdown(shutdownCtx);return errors.Join(shutdownErr,serveErr,adminShutdownErr,traceErr)
+{{else}}	return errors.Join(shutdownErr,serveErr)
+{{end}}}

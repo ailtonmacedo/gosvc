@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gosvc.dev/schema/manifest-v3.json",
+  "title": "gosvc project manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "framework_version",
+    "schema_version",
+    "project",
+    "compatibility",
+    "preset",
+    "features",
+    "files"
+  ],
+  "properties": {
+    "framework_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "const": 3
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "module",
+        "config_schema_version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "module": {
+          "type": "string",
+          "minLength": 1
+        },
+        "config_schema_version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "preset": {
+      "type": "string",
+      "minLength": 1
+    },
+    "features": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "version",
+          "source"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "checksum": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "protocol_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "upgrade_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from_framework_version",
+          "to_framework_version",
+          "from_schema_version",
+          "to_schema_version",
+          "applied_at"
+        ],
+        "properties": {
+          "from_framework_version": {
+            "type": "string"
+          },
+          "to_framework_version": {
+            "type": "string"
+          },
+          "from_schema_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "to_schema_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "applied_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "backup": {
+            "type": "string",
+            "pattern": "^\\.gosvc/backups/[A-Za-z0-9._-]+\\.zip$"
+          }
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "ownership",
+          "checksum"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ownership": {
+            "enum": [
+              "user",
+              "generated"
+            ]
+          },
+          "checksum": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "producer": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          }
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_gosvc_version",
+        "last_validated_gosvc_version"
+      ],
+      "properties": {
+        "minimum_gosvc_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "last_validated_gosvc_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "rollback_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "backup",
+          "restored_from_version",
+          "restored_to_version",
+          "applied_at"
+        ],
+        "properties": {
+          "backup": {
+            "type": "string",
+            "pattern": "^\\.gosvc/backups/[A-Za-z0-9._-]+\\.zip$"
+          },
+          "restored_from_version": {
+            "type": "string"
+          },
+          "restored_to_version": {
+            "type": "string"
+          },
+          "applied_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}

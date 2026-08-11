@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gosvc.dev/schema/plugin-v2.json",
+  "title": "gosvc executable plugin manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "protocol_version", "name", "version", "description", "minimum_gosvc_version", "capabilities", "entrypoint", "checksum"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "protocol_version": {"const": 1},
+    "name": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"},
+    "version": {"type": "string", "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"},
+    "description": {"type": "string", "minLength": 1},
+    "minimum_gosvc_version": {"type": "string"},
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": ["artifacts", "validation", "commands"]}
+    },
+    "entrypoint": {"type": "string", "minLength": 1},
+    "checksum": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}

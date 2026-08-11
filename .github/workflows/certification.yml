@@ -1,0 +1,72 @@
+name: Real E2E Certification
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-certification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.x'
+          cache: true
+
+      - name: Install certification tools
+        run: |
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
+          go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
+          go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+          go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Verify certification environment
+        run: |
+          echo "PATH=$PATH"
+          echo "GOPATH=$(go env GOPATH)"
+          command -v go
+          go version
+          command -v docker
+          docker --version
+          docker compose version
+          for tool in sqlc oapi-codegen migrate golangci-lint govulncheck; do
+            echo "$tool=$(command -v "$tool")"
+          done
+
+      - name: Build gosvc
+        run: make build VERSION=certification
+
+      - name: Run static certification
+        run: ./bin/gosvc certify --mode static --require-real
+
+      - name: Run real integration and E2E certification
+        run: |
+          set -o pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          ./bin/gosvc certify \
+            --mode real \
+            --require-real \
+            --timeout 4m \
+            --json | tee artifacts/certification-real.json
+
+      - name: Upload certification report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: real-e2e-certification
+          path: artifacts/

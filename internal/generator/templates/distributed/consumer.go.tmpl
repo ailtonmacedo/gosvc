@@ -1,0 +1,78 @@
+package kafka
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/twmb/franz-go/pkg/kgo"
+
+	"{{.Config.Project.Module}}/internal/ports"
+)
+
+type Handler interface { Handle(ctx context.Context, key string, payload []byte) error }
+
+type Consumer struct {
+	client       *kgo.Client
+	publisher    ports.EventPublisher
+	idempotency  ports.IdempotencyStore
+	maxRetries   int
+	backoff      time.Duration
+	dlqSuffix    string
+}
+
+func OpenConsumer(brokers []string, group string, topics []string, publisher ports.EventPublisher, idempotency ports.IdempotencyStore, maxRetries int, backoff time.Duration, dlqSuffix string) (*Consumer, error) {
+	if len(brokers) == 0 || group == "" || len(topics) == 0 { return nil, errors.New("kafka brokers, group, and topics are required") }
+	client, err := kgo.NewClient(kgo.SeedBrokers(brokers...), kgo.ConsumerGroup(group), kgo.ConsumeTopics(topics...))
+	if err != nil { return nil, fmt.Errorf("create Kafka consumer: %w", err) }
+	return &Consumer{client: client, publisher: publisher, idempotency: idempotency, maxRetries: maxRetries, backoff: backoff, dlqSuffix: dlqSuffix}, nil
+}
+
+func (c *Consumer) Close() { c.client.Close() }
+func (c *Consumer) Run(ctx context.Context, handler Handler) error {
+	if handler == nil { return errors.New("consumer handler is required") }
+	for {
+		fetches := c.client.PollFetches(ctx)
+		if ctx.Err() != nil { return ctx.Err() }
+		for _, fetchErr := range fetches.Errors() { return fmt.Errorf("poll Kafka: %w", fetchErr.Err) }
+		fetches.EachRecord(func(record *kgo.Record) {
+			if err := c.handleRecord(ctx, record, handler); err == nil { _ = c.client.CommitRecords(ctx, record) }
+		})
+	}
+}
+
+func (c *Consumer) handleRecord(ctx context.Context, record *kgo.Record, handler Handler) error {
+	key := fmt.Sprintf("%s:%d:%d", record.Topic, record.Partition, record.Offset)
+	acquired := false
+	if c.idempotency != nil {
+		var err error
+		acquired, err = c.idempotency.Acquire(ctx, key, 24*time.Hour)
+		if err != nil { return err }
+		if !acquired { return nil }
+	}
+	release := func() {
+		if acquired && c.idempotency != nil { _ = c.idempotency.Release(context.WithoutCancel(ctx), key) }
+	}
+
+	var err error
+	for attempt := 0; attempt <= c.maxRetries; attempt++ {
+		if err = handler.Handle(ctx, string(record.Key), record.Value); err == nil { return nil }
+		if attempt < c.maxRetries {
+			select {
+			case <-ctx.Done(): release(); return ctx.Err()
+			case <-time.After(c.backoff):
+			}
+		}
+	}
+	if c.publisher != nil {
+		if publishErr := c.publisher.Publish(ctx, record.Topic+c.dlqSuffix, string(record.Key), record.Value); publishErr == nil {
+			return nil
+		} else {
+			release()
+			return fmt.Errorf("publish dead-letter message: %w", publishErr)
+		}
+	}
+	release()
+	return err
+}

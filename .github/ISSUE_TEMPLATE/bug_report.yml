@@ -1,0 +1,24 @@
+name: Bug report
+description: Report reproducible incorrect behavior
+title: "bug: "
+labels: ["type: bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: gosvc version
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include commands, project.yaml, and relevant output.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true

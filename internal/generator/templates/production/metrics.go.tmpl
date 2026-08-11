@@ -1,0 +1,16 @@
+package httpserver
+
+import (
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+type HTTPMetrics struct{ requests *prometheus.CounterVec; duration *prometheus.HistogramVec; inFlight prometheus.Gauge }
+func NewHTTPMetrics()(*HTTPMetrics,http.Handler){registry:=prometheus.NewRegistry();metrics:=&HTTPMetrics{requests:prometheus.NewCounterVec(prometheus.CounterOpts{Name:"http_requests_total",Help:"Total HTTP requests."},[]string{"method","status"}),duration:prometheus.NewHistogramVec(prometheus.HistogramOpts{Name:"http_request_duration_seconds",Help:"HTTP request duration."},[]string{"method"}),inFlight:prometheus.NewGauge(prometheus.GaugeOpts{Name:"http_requests_in_flight",Help:"HTTP requests currently in flight."})};registry.MustRegister(metrics.requests,metrics.duration,metrics.inFlight);return metrics,promhttp.HandlerFor(registry,promhttp.HandlerOpts{})}
+type metricWriter struct{http.ResponseWriter;status int}
+func(w *metricWriter)WriteHeader(status int){w.status=status;w.ResponseWriter.WriteHeader(status)}
+func(m *HTTPMetrics)Middleware(next http.Handler)http.Handler{return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){start:=time.Now();m.inFlight.Inc();defer m.inFlight.Dec();writer:=&metricWriter{ResponseWriter:w,status:http.StatusOK};next.ServeHTTP(writer,r);m.requests.WithLabelValues(r.Method,strconv.Itoa(writer.status)).Inc();m.duration.WithLabelValues(r.Method).Observe(time.Since(start).Seconds())})}

@@ -1,0 +1,47 @@
+package application
+
+import (
+	"context"
+	"fmt"
+
+	"{{.Config.Project.Module}}/internal/domain"
+	"{{.Config.Project.Module}}/internal/ports"
+)
+
+type OrderService struct { repository ports.OrderRepository }
+
+func NewOrderService(repository ports.OrderRepository) *OrderService { return &OrderService{repository: repository} }
+
+func (s *OrderService) Create(ctx context.Context, status string, totalCents int64) (domain.Order, error) {
+	order, err := domain.NewOrder(status, totalCents)
+	if err != nil { return domain.Order{}, err }
+	created, err := s.repository.Create(ctx, order)
+	if err != nil { return domain.Order{}, fmt.Errorf("create order: %w", err) }
+	return created, nil
+}
+
+func (s *OrderService) GetByID(ctx context.Context, id int64) (domain.Order, error) {
+	order, err := s.repository.GetByID(ctx, id)
+	if err != nil { return domain.Order{}, fmt.Errorf("get order %d: %w", id, err) }
+	return order, nil
+}
+
+func (s *OrderService) List(ctx context.Context, limit, offset int32) ([]domain.Order, error) {
+	orders, err := s.repository.List(ctx, limit, offset)
+	if err != nil { return nil, fmt.Errorf("list orders: %w", err) }
+	return orders, nil
+}
+
+func (s *OrderService) Update(ctx context.Context, id int64, status string, totalCents int64) (domain.Order, error) {
+	order, err := domain.NewOrder(status, totalCents)
+	if err != nil { return domain.Order{}, err }
+	order.ID = id
+	updated, err := s.repository.Update(ctx, order)
+	if err != nil { return domain.Order{}, fmt.Errorf("update order %d: %w", id, err) }
+	return updated, nil
+}
+
+func (s *OrderService) Delete(ctx context.Context, id int64) error {
+	if err := s.repository.Delete(ctx, id); err != nil { return fmt.Errorf("delete order %d: %w", id, err) }
+	return nil
+}

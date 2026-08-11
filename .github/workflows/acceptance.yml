@@ -1,0 +1,48 @@
+name: Acceptance
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preset-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version:
+          - '1.23.x'
+          - '1.25.x'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Test generator
+        run: go test ./...
+
+      - name: Run acceptance matrix
+        run: |
+          mkdir -p artifacts
+          go run ./cmd/gosvc acceptance --json > artifacts/acceptance-report.json
+
+      - name: Run generator benchmarks
+        run: go test -run='^$' -bench=. -benchmem ./internal/generator | tee artifacts/benchmarks.txt
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v6
+        with:
+          name: acceptance-go-${{ matrix.go-version }}
+          path: artifacts/

@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gosvc.dev/schema/certification-report.schema.json",
+  "title": "gosvc certification report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "mode",
+    "host",
+    "prerequisites",
+    "presets",
+    "passed",
+    "failed",
+    "blocked",
+    "skipped",
+    "duration_ms"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "mode": { "enum": ["static", "real"] },
+    "work_dir": { "type": "string" },
+    "duration_ms": { "type": "integer", "minimum": 0 },
+    "passed": { "type": "integer", "minimum": 0 },
+    "failed": { "type": "integer", "minimum": 0 },
+    "blocked": { "type": "integer", "minimum": 0 },
+    "skipped": { "type": "integer", "minimum": 0 },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "arch", "go_version"],
+      "properties": {
+        "os": { "type": "string", "minLength": 1 },
+        "arch": { "type": "string", "minLength": 1 },
+        "go_version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "prerequisites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "command", "required", "status"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "command": { "type": "string", "minLength": 1 },
+          "required": { "type": "boolean" },
+          "status": { "enum": ["pass", "fail", "blocked", "skipped"] },
+          "version": { "type": "string" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "presets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["preset", "status", "checks", "duration_ms"],
+        "properties": {
+          "preset": { "enum": ["minimal-api", "postgres-api", "production-api", "event-driven-api"] },
+          "status": { "enum": ["pass", "fail", "blocked", "skipped"] },
+          "project_dir": { "type": "string" },
+          "duration_ms": { "type": "integer", "minimum": 0 },
+          "error": { "type": "string" },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "status", "duration_ms"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "status": { "enum": ["pass", "fail", "blocked", "skipped"] },
+                "duration_ms": { "type": "integer", "minimum": 0 },
+                "detail": { "type": "string" },
+                "output": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

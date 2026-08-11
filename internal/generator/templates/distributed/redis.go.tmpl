@@ -1,0 +1,36 @@
+package redisstore
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/redis/go-redis/v9"
+
+	"{{.Config.Project.Module}}/internal/config"
+)
+
+type Store struct { client *redis.Client }
+
+func Open(ctx context.Context, cfg config.CacheConfig) (*Store, error) {
+	client := redis.NewClient(&redis.Options{Addr: cfg.Address, Password: cfg.Password, DB: cfg.DB})
+	if err := client.Ping(ctx).Err(); err != nil {
+		_ = client.Close()
+		return nil, fmt.Errorf("ping Redis: %w", err)
+	}
+	return &Store{client: client}, nil
+}
+
+func (s *Store) Ping(ctx context.Context) error { return s.client.Ping(ctx).Err() }
+func (s *Store) Close() error { return s.client.Close() }
+func (s *Store) Acquire(ctx context.Context, key string, ttl time.Duration) (bool, error) {
+	acquired, err := s.client.SetNX(ctx, "idempotency:"+key, "1", ttl).Result()
+	if err != nil { return false, fmt.Errorf("acquire idempotency key: %w", err) }
+	return acquired, nil
+}
+func (s *Store) Release(ctx context.Context, key string) error {
+	if err := s.client.Del(ctx, "idempotency:"+key).Err(); err != nil {
+		return fmt.Errorf("release idempotency key: %w", err)
+	}
+	return nil
+}

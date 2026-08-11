@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>gosvc — Guia de Configuração e Uso</title>
+<style>
+:root{--bg:#0b1020;--panel:#121a2e;--panel2:#17213a;--text:#e8eefc;--muted:#a6b2cd;--line:#2a385a;--brand:#7dd3fc;--brand2:#a7f3d0;--warn:#fbbf24;--danger:#fb7185;--ok:#86efac;--code:#070b14;--shadow:0 14px 40px rgba(0,0,0,.25);--radius:14px}
+@media(prefers-color-scheme:light){:root{--bg:#f6f8fc;--panel:#fff;--panel2:#f1f5fb;--text:#15213a;--muted:#5d6a83;--line:#dbe3f0;--brand:#0369a1;--brand2:#047857;--warn:#a16207;--danger:#be123c;--ok:#15803d;--code:#0f172a;--shadow:0 10px 30px rgba(31,41,55,.08)}}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font:15.5px/1.65 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}code,kbd{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}.layout{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:100vh}.sidebar{position:sticky;top:0;height:100vh;border-right:1px solid var(--line);background:var(--panel);padding:22px 18px;overflow:auto}.logo{display:flex;gap:10px;align-items:center;font-weight:800;font-size:20px}.logo-mark{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#07101e;font-weight:900}.version{margin:12px 0 18px;color:var(--muted);font-size:12px}.search{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);outline:none}.nav{margin-top:16px}.nav a{display:block;padding:6px 9px;border-radius:8px;color:var(--muted);font-size:13.5px}.nav a:hover,.nav a.active{background:var(--panel2);color:var(--text);text-decoration:none}.nav .group{margin-top:10px;color:var(--text);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.08em;padding:6px 9px}.main{min-width:0}.hero{padding:54px clamp(24px,6vw,90px) 34px;background:radial-gradient(circle at 15% 0,rgba(125,211,252,.14),transparent 36%),radial-gradient(circle at 85% 0,rgba(167,243,208,.11),transparent 34%);border-bottom:1px solid var(--line)}.hero .eyebrow{color:var(--brand2);font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:12px}.hero h1{font-size:clamp(34px,5vw,62px);line-height:1.05;margin:8px 0 14px;letter-spacing:-.04em}.hero p{max-width:850px;font-size:18px;color:var(--muted)}.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}.btn{display:inline-block;padding:10px 14px;border-radius:10px;background:var(--brand);color:#07101e;font-weight:800}.btn.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line)}.content{max-width:1120px;margin:auto;padding:28px clamp(24px,5vw,70px) 100px}section{scroll-margin-top:20px;padding:30px 0;border-bottom:1px solid var(--line)}section:last-child{border-bottom:0}h2{font-size:29px;letter-spacing:-.02em;margin:0 0 12px}h3{font-size:21px;margin:28px 0 10px}h4{font-size:16px;margin:20px 0 8px}.lead{color:var(--muted);font-size:17px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0}.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}.card h3,.card h4{margin-top:0}.card p:last-child{margin-bottom:0}.tag{display:inline-flex;border:1px solid var(--line);background:var(--panel2);padding:3px 8px;border-radius:999px;font-size:12px;color:var(--muted);margin:2px}.tag.ok{color:var(--ok)}.tag.warn{color:var(--warn)}.steps{counter-reset:step}.step{position:relative;margin:18px 0 24px;padding-left:52px}.step:before{counter-increment:step;content:counter(step);position:absolute;left:0;top:-2px;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--panel2);border:1px solid var(--line);color:var(--brand);font-weight:900}.step h3{margin:0 0 6px}.note,.warning,.danger,.success{border-left:4px solid var(--brand);background:var(--panel);padding:14px 16px;border-radius:8px;margin:16px 0}.warning{border-left-color:var(--warn)}.danger{border-left-color:var(--danger)}.success{border-left-color:var(--ok)}.note strong,.warning strong,.danger strong,.success strong{display:block;margin-bottom:2px}pre{position:relative;margin:12px 0 18px;background:var(--code);color:#e5e7eb;border-radius:12px;padding:16px 48px 16px 16px;overflow:auto;border:1px solid rgba(148,163,184,.18);font:13px/1.55 "SFMono-Regular",Consolas,"Liberation Mono",monospace;white-space:pre}pre code{font:inherit}.copy{position:absolute;top:8px;right:8px;border:1px solid #334155;background:#172033;color:#dbeafe;padding:5px 8px;border-radius:7px;font-size:11px;cursor:pointer}.copy.copied{color:#86efac}table{width:100%;border-collapse:collapse;margin:15px 0 22px;display:block;overflow:auto}th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--panel2);font-size:13px}tr:hover td{background:rgba(125,211,252,.03)}ul.check{list-style:none;padding-left:0}.check li{padding:4px 0}.check li:before{content:"✓";color:var(--ok);font-weight:900;margin-right:9px}.flow{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin:16px 0}.flow span{padding:7px 10px;border-radius:8px;background:var(--panel2);border:1px solid var(--line)}.flow b{color:var(--brand)}.kbd{border:1px solid var(--line);background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12px}.toc-inline{columns:2;column-gap:28px}.toc-inline a{display:block;padding:4px 0}.terminal-title{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin-bottom:-8px}.footer{color:var(--muted);font-size:13px;text-align:center;padding:30px}.hide-search{display:none!important}@media(max-width:880px){.layout{display:block}.sidebar{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)}.nav{columns:2}.content{padding-top:12px}.toc-inline{columns:1}}@media print{.sidebar,.hero-actions,.copy,.search{display:none!important}.layout{display:block}.hero,.content{padding:20px;max-width:none}.card,pre{box-shadow:none}section{page-break-inside:avoid}body{background:white;color:black}.hero p,.lead,.version{color:#444}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="logo"><span class="logo-mark">G</span><span>gosvc docs</span></div>
+  <div class="version">Guia de configuração e uso · linha v1.1</div>
+  <input id="search" class="search" placeholder="Buscar na documentação…" aria-label="Buscar">
+  <nav class="nav" id="nav">
+    <div class="group">Começando</div>
+    <a href="#visao-geral">Visão geral</a>
+    <a href="#pre-requisitos">Pré-requisitos</a>
+    <a href="#instalacao">Instalação do gosvc</a>
+    <a href="#presets">Escolha do preset</a>
+    <a href="#quickstart">Quick start</a>
+    <div class="group">Projeto gerado</div>
+    <a href="#estrutura">Estrutura</a>
+    <a href="#project-yaml">project.yaml</a>
+    <a href="#variaveis">Variáveis de ambiente</a>
+    <a href="#minimal">minimal-api</a>
+    <a href="#postgres">postgres-api</a>
+    <a href="#crud">CRUD / add resource</a>
+    <a href="#production">production-api</a>
+    <a href="#observabilidade">Observabilidade</a>
+    <a href="#event-driven">event-driven-api</a>
+    <a href="#kubernetes">Kubernetes</a>
+    <div class="group">Operação</div>
+    <a href="#qualidade">Testes e qualidade</a>
+    <a href="#diagnosticos">Diagnósticos</a>
+    <a href="#regeneracao">Regeneração segura</a>
+    <a href="#upgrade">Upgrade e rollback</a>
+    <a href="#plugins">Plugins</a>
+    <a href="#certificacao">Acceptance e certificação</a>
+    <a href="#release">Release e GitHub</a>
+    <a href="#problemas">Problemas comuns</a>
+    <a href="#referencia">Referência rápida</a>
+  </nav>
+</aside>
+<main class="main">
+<header class="hero">
+  <div class="eyebrow">Documentação standalone</div>
+  <h1>gosvc — configuração e uso, passo a passo</h1>
+  <p>Do primeiro build da CLI até uma API Go com PostgreSQL, JWT, observabilidade, Kafka, Outbox, Kubernetes, validação arquitetural, upgrades e certificação.</p>
+  <div class="hero-actions"><a class="btn" href="#quickstart">Começar agora</a><a class="btn secondary" href="#presets">Comparar presets</a><a class="btn secondary" href="#referencia">Comandos</a></div>
+</header>
+<div class="content">
+
+<section id="visao-geral" data-search="visão geral arquitetura gerador go clean architecture">
+<h2>1. Visão geral</h2>
+<p class="lead"><strong>gosvc</strong> é um gerador opinativo para serviços Go. Ele gera código Go comum: o serviço criado não depende do <code>gosvc</code> em runtime.</p>
+<div class="flow"><span>gosvc CLI</span><b>→</b><span>templates + preset</span><b>→</b><span>projeto Go</span><b>→</b><span>seu código</span><b>→</b><span>build/deploy independente</span></div>
+<div class="grid">
+<div class="card"><h3>Clean Architecture</h3><p>Domínio e aplicação ficam protegidos de Chi, pgx, Kafka, JWT e detalhes de infraestrutura.</p></div>
+<div class="card"><h3>Geração segura</h3><p>Ownership, checksums SHA-256, dry-run, escrita atômica e regeneração idempotente.</p></div>
+<div class="card"><h3>Pronto para crescer</h3><p>Presets progressivos: mínimo, PostgreSQL, produção e arquitetura orientada a eventos.</p></div>
+<div class="card"><h3>Quality gates</h3><p>Testes, cobertura, race detector, vet, lint, govulncheck, acceptance e certificação E2E.</p></div>
+</div>
+<div class="note"><strong>Objetivo desta página</strong>Se você nunca usou o projeto, siga as seções na ordem. Se já conhece o fluxo, use a navegação lateral como referência.</div>
+</section>
+
+<section id="pre-requisitos" data-search="pré requisitos go git docker sqlc migrate oapi-codegen lint kubectl">
+<h2>2. Pré-requisitos</h2>
+<table><thead><tr><th>Ferramenta</th><th>Quando é necessária</th><th>Observação</th></tr></thead><tbody>
+<tr><td><strong>Go</strong></td><td>CLI e projetos</td><td>A CLI usa a versão do <code>go.mod</code>. Presets com banco são direcionados a <strong>Go 1.25+</strong>.</td></tr>
+<tr><td><strong>Git</strong></td><td>Recomendado</td><td>Usado por checks de <code>go mod tidy</code>, geração e release.</td></tr>
+<tr><td><strong>Docker + Compose</strong></td><td>postgres/production/event-driven</td><td>Sobe PostgreSQL, Redis, Kafka/Redpanda, Prometheus e OTel Collector.</td></tr>
+<tr><td><strong>sqlc</strong></td><td>Presets com banco</td><td><code>make tools</code> instala a versão fixada localmente em <code>./bin</code>.</td></tr>
+<tr><td><strong>golang-migrate</strong></td><td>Presets com banco</td><td>Executa migrations <code>up/down/version</code>.</td></tr>
+<tr><td><strong>oapi-codegen</strong></td><td>Presets com banco</td><td>Gera código a partir do OpenAPI.</td></tr>
+<tr><td><strong>golangci-lint + govulncheck</strong></td><td>Todos</td><td>Também instalados por <code>make tools</code>.</td></tr>
+<tr><td><strong>kubectl</strong></td><td>event-driven / Kubernetes</td><td>Necessário para <code>make k8s-validate</code> e <code>make k8s-apply</code>.</td></tr>
+</tbody></table>
+<p>Depois de compilar a CLI, você pode inspecionar o ambiente:</p>
+<pre><code>gosvc doctor --project .</code></pre>
+</section>
+
+<section id="instalacao" data-search="instalação build gosvc make build homebrew scoop go install completion">
+<h2>3. Instalação do gosvc</h2>
+<div class="steps">
+<div class="step"><h3>Baixe ou extraia o código-fonte</h3><p>Entre no diretório do repositório da CLI.</p><pre><code>cd gosvc</code></pre></div>
+<div class="step"><h3>Valide a própria CLI</h3><pre><code>make tidy
+make verify</code></pre></div>
+<div class="step"><h3>Compile</h3><pre><code>make build VERSION=1.1.0</code></pre><p>O binário será criado em <code>bin/gosvc</code>.</p></div>
+<div class="step"><h3>Confirme a instalação</h3><pre><code>./bin/gosvc version
+./bin/gosvc --help</code></pre></div>
+<div class="step"><h3>Opcional: coloque no PATH</h3><pre><code>install -m 0755 ./bin/gosvc ~/.local/bin/gosvc
+export PATH="$HOME/.local/bin:$PATH"</code></pre></div>
+</div>
+<h3>Quando houver uma release pública</h3>
+<p>O projeto já gera installer, Homebrew Formula, Scoop manifest e suporta <code>go install</code>.</p>
+<pre><code># Go install
+go install github.com/ailtonmacedo/gosvc/cmd/gosvc@v1.1.0
+
+# Shell completion
+gosvc completion bash &gt; ~/.local/share/bash-completion/completions/gosvc</code></pre>
+</section>
+
+<section id="presets" data-search="presets minimal postgres production event driven comparação">
+<h2>4. Escolha o preset</h2>
+<table><thead><tr><th>Preset</th><th>Inclui</th><th>Use quando</th></tr></thead><tbody>
+<tr><td><strong>minimal-api</strong></td><td>Chi, config, health, Docker, testes, cobertura, lint e CI</td><td>Serviço HTTP pequeno, sem banco.</td></tr>
+<tr><td><strong>postgres-api</strong></td><td>minimal + pgxpool, migrations, sqlc, OpenAPI, validação e ReDoc</td><td>API CRUD com PostgreSQL.</td></tr>
+<tr><td><strong>production-api</strong></td><td>postgres + JWT, refresh token, RBAC, rate limit, slog, Prometheus, OTel, pprof</td><td>API pronta para ambientes produtivos.</td></tr>
+<tr><td><strong>event-driven-api</strong></td><td>production + Redis, Kafka, Outbox, idempotência, DLQ, worker e Kubernetes</td><td>Sistemas distribuídos e integração assíncrona.</td></tr>
+</tbody></table>
+<div class="success"><strong>Regra prática</strong>Comece pelo menor preset que resolve o problema. Você evita complexidade operacional desnecessária.</div>
+</section>
+
+<section id="quickstart" data-search="quick start criar primeiro projeto novo new catalog service">
+<h2>5. Quick start: primeira API</h2>
+<p class="lead">Exemplo recomendado para aprender: uma API PostgreSQL.</p>
+<div class="steps">
+<div class="step"><h3>Crie o projeto</h3><pre><code>gosvc new catalog-service \
+  --module github.com/acme/catalog-service \
+  --preset postgres-api</code></pre></div>
+<div class="step"><h3>Entre no diretório</h3><pre><code>cd catalog-service</code></pre></div>
+<div class="step"><h3>Suba o PostgreSQL</h3><pre><code>docker compose up -d postgres</code></pre></div>
+<div class="step"><h3>Configure o banco</h3><pre><code>export DATABASE_URL='postgres://postgres:postgres@localhost:5432/catalog-service?sslmode=disable'</code></pre></div>
+<div class="step"><h3>Instale ferramentas do projeto</h3><pre><code>make tools</code></pre></div>
+<div class="step"><h3>Prepare o schema e gere código</h3><pre><code>make migrate-up
+make generate</code></pre></div>
+<div class="step"><h3>Valide e execute</h3><pre><code>make verify
+make run</code></pre></div>
+<div class="step"><h3>Teste a API</h3><pre><code>curl http://localhost:8080/health/live
+curl http://localhost:8080/health/ready</code></pre></div>
+</div>
+</section>
+
+<section id="estrutura" data-search="estrutura pastas internal domain application ports infrastructure generated db api">
+<h2>6. Estrutura do projeto gerado</h2>
+<pre><code>catalog-service/
+├── cmd/api/                      # entrypoint da API
+├── internal/
+│   ├── domain/                   # entidades e erros de negócio
+│   ├── application/              # casos de uso
+│   ├── ports/                    # contratos/interfaces
+│   ├── infrastructure/
+│   │   ├── http/                 # handlers, router, middleware
+│   │   └── persistence/postgres/ # adapters PostgreSQL
+│   ├── generated/
+│   │   ├── openapi/              # código gerado do contrato
+│   │   └── sqlc/                 # código SQL gerado
+│   ├── bootstrap/                # composição de dependências
+│   ├── observability/            # quando aplicável
+│   └── config/
+├── api/openapi.yaml
+├── db/migrations/
+├── db/queries/
+├── tests/integration/
+├── deployments/
+├── .gosvc/                       # manifest, resources, plugins, backups
+├── project.yaml                  # configuração declarativa do gerador
+├── .env.example                  # referência de env de runtime
+├── compose.yaml
+├── Dockerfile
+└── Makefile</code></pre>
+<div class="note"><strong>Dependência para dentro</strong><code>domain</code> não deve importar Chi, pgx, JWT, Kafka ou infraestrutura. O comando <code>gosvc check architecture</code> fiscaliza isso.</div>
+</section>
+
+<section id="project-yaml" data-search="project yaml configuração schema api database auth rate limit cache messaging outbox observability deployment quality">
+<h2>7. Entendendo o <code>project.yaml</code></h2>
+<p>O <code>project.yaml</code> descreve <strong>como o projeto é gerado</strong>. Ele não substitui as variáveis de ambiente de runtime.</p>
+<pre><code>schema_version: 1
+
+project:
+  name: catalog-service
+  module: github.com/acme/catalog-service
+  go_version: 1.25
+  preset: production-api
+
+architecture:
+  type: clean
+  layout: layered
+
+api:
+  enabled: true
+  router: chi
+  port: 8080
+  read_timeout: 10s
+  write_timeout: 15s
+  idle_timeout: 60s
+  shutdown_timeout: 10s
+  max_body_size: 1048576
+
+openapi:
+  enabled: true
+  source: api/openapi.yaml
+  strict_server: true
+  request_validation: true
+  documentation: redoc
+
+database:
+  enabled: true
+  engine: postgres
+  driver: pgx
+  pool: pgxpool
+  migrations: golang-migrate
+  code_generation: sqlc
+
+auth:
+  enabled: true
+  strategy: jwt
+  access_token:
+    ttl: 15m
+    algorithm: HS256
+    issuer: catalog-service
+    audience: catalog-service-api
+    revocation: none
+  refresh_token:
+    ttl: 168h
+    storage: postgres
+    rotation: true
+    reuse_detection: true
+    transport: http_only_cookie
+  rbac: true
+  mfa: false
+
+quality:
+  coverage:
+    minimum: 80</code></pre>
+<h3>Como validar</h3>
+<pre><code>gosvc validate-config --print ./project.yaml</code></pre>
+<div class="warning"><strong>Parser YAML intencionalmente restrito</strong>O parser embutido aceita mappings aninhados e escalares. Listas, anchors, aliases, tags, chaves duplicadas e valores multiline são rejeitados.</div>
+</section>
+
+<section id="variaveis" data-search="env environment variáveis ambiente .env source dotenv DATABASE_URL JWT_SECRET REDIS KAFKA">
+<h2>8. Variáveis de ambiente</h2>
+<p>O arquivo <code>.env.example</code> é criado como referência. A aplicação gerada usa <code>os.Getenv</code>.</p>
+<div class="danger"><strong>Importante: <code>.env</code> não é carregado automaticamente</strong>Executar apenas <code>cp .env.example .env</code> não injeta as variáveis quando você roda <code>make run</code>. Carregue-as no shell ou use Docker Compose.</div>
+<h3>Linux / macOS</h3>
+<pre><code>cp .env.example .env
+set -a
+. ./.env
+set +a
+make run</code></pre>
+<h3>PowerShell</h3>
+<pre><code># Para desenvolvimento, defina as variáveis necessárias na sessão:
+$env:DATABASE_URL = "postgres://postgres:postgres@localhost:5432/catalog-service?sslmode=disable"
+$env:JWT_SECRET = "use-um-secret-aleatorio-com-pelo-menos-32-bytes"
+make run</code></pre>
+<h3>Variáveis principais</h3>
+<table><thead><tr><th>Grupo</th><th>Variáveis</th></tr></thead><tbody>
+<tr><td>HTTP</td><td><code>APP_NAME</code>, <code>APP_ENV</code>, <code>HTTP_PORT</code>, timeouts, <code>HTTP_MAX_BODY_SIZE</code></td></tr>
+<tr><td>PostgreSQL</td><td><code>DATABASE_URL</code>, pool max/min, lifetime, idle time, health period e query timeout</td></tr>
+<tr><td>Auth</td><td><code>JWT_SECRET</code>, issuer, audience, TTLs, <code>AUTH_COOKIE_SECURE</code></td></tr>
+<tr><td>Rate limit</td><td><code>RATE_LIMIT_RPS</code>, burst, key, TTL e cleanup</td></tr>
+<tr><td>Observabilidade</td><td><code>METRICS_ENDPOINT</code>, <code>OTEL_TRACING_ENABLED</code>, endpoint OTLP, insecure, pprof</td></tr>
+<tr><td>Event-driven</td><td><code>REDIS_ADDRESS</code>, Redis DB, Kafka brokers, group, retry, DLQ, Outbox polling/batch/attempts</td></tr>
+</tbody></table>
+</section>
+
+<section id="minimal" data-search="minimal api executar health docker sem banco">
+<h2>9. Usando <code>minimal-api</code></h2>
+<pre><code>gosvc new hello-service \
+  --module github.com/acme/hello-service \
+  --preset minimal-api
+
+cd hello-service
+make tools
+make verify
+make run</code></pre>
+<p>Teste:</p>
+<pre><code>curl http://localhost:8080/health/live
+curl http://localhost:8080/health/ready</code></pre>
+<p>Esse preset é ideal para aprender a arquitetura ou criar um serviço HTTP sem persistência.</p>
+</section>
+
+<section id="postgres" data-search="postgres api pgxpool migrations sqlc openapi redoc banco">
+<h2>10. Usando <code>postgres-api</code></h2>
+<div class="steps">
+<div class="step"><h3>Crie</h3><pre><code>gosvc new catalog-service \
+  --module github.com/acme/catalog-service \
+  --preset postgres-api</code></pre></div>
+<div class="step"><h3>Suba PostgreSQL</h3><pre><code>cd catalog-service
+docker compose up -d postgres</code></pre></div>
+<div class="step"><h3>Configure a URL</h3><pre><code>export DATABASE_URL='postgres://postgres:postgres@localhost:5432/catalog-service?sslmode=disable'</code></pre></div>
+<div class="step"><h3>Ferramentas</h3><pre><code>make tools</code></pre></div>
+<div class="step"><h3>Migrations</h3><pre><code>make migrate-up
+make migrate-version</code></pre></div>
+<div class="step"><h3>OpenAPI + sqlc</h3><pre><code>make generate</code></pre></div>
+<div class="step"><h3>Quality gate</h3><pre><code>make verify</code></pre></div>
+<div class="step"><h3>Execute</h3><pre><code>make run</code></pre></div>
+</div>
+<h3>Endpoints úteis</h3>
+<pre><code>http://localhost:8080/health/live
+http://localhost:8080/health/ready
+http://localhost:8080/docs
+http://localhost:8080/openapi.yaml</code></pre>
+<div class="note"><strong>ReDoc</strong>A página <code>/docs</code> usa o bundle web do ReDoc. Se o ambiente for totalmente offline, o contrato continuará disponível em <code>/openapi.yaml</code>, mas a interface visual poderá exigir acesso ao bundle configurado.</div>
+</section>
+
+<section id="crud" data-search="add resource crud fields uuid string decimal int64 bool datetime orders products curl">
+<h2>11. Adicionando um CRUD</h2>
+<p>Use <code>gosvc add resource</code> em presets com banco.</p>
+<pre><code>gosvc add resource product \
+  --fields 'id:uuid,name:string,price:decimal,active:bool,released_at:datetime' \
+  --crud \
+  --project ./catalog-service</code></pre>
+<h3>Tipos suportados</h3>
+<p><span class="tag">uuid</span><span class="tag">string</span><span class="tag">int64</span><span class="tag">integer</span><span class="tag">decimal</span><span class="tag">bool</span><span class="tag">datetime</span></p>
+<div class="warning"><strong><code>decimal</code> atualmente vira <code>int64</code></strong>Para dinheiro, use uma unidade menor explícita (por exemplo, centavos) ou defina uma convenção clara para evitar interpretação como ponto flutuante.</div>
+<p>O campo <code>id</code> é obrigatório e deve ser <code>int64</code> ou <code>uuid</code>.</p>
+<h3>O que é gerado</h3>
+<ul class="check"><li>Entidade e erros de domínio</li><li>Port de repository</li><li>Casos de uso + testes</li><li>Adapter PostgreSQL</li><li>Queries SQL + snapshot sqlc</li><li>Migration up/down</li><li>Handlers HTTP + testes</li><li>Teste de integração</li><li>Paths e schemas OpenAPI</li></ul>
+<h3>Exemplo com <code>postgres-api</code> (rotas públicas)</h3>
+<pre><code>curl -X POST http://localhost:8080/products \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name":"Keyboard",
+    "price":19990,
+    "active":true,
+    "released_at":"2026-08-10T12:00:00Z"
+  }'
+
+curl http://localhost:8080/products</code></pre>
+<p>Depois de adicionar um recurso que altera SQL/OpenAPI:</p>
+<pre><code>make migrate-up
+make generate
+make verify</code></pre>
+</section>
+
+<section id="production" data-search="production api jwt auth login refresh logout rbac admin password hash cookie">
+<h2>12. Usando <code>production-api</code></h2>
+<div class="steps">
+<div class="step"><h3>Crie o projeto</h3><pre><code>gosvc new catalog-service \
+  --module github.com/acme/catalog-service \
+  --preset production-api
+cd catalog-service</code></pre></div>
+<div class="step"><h3>Suba dependências</h3><pre><code>docker compose up -d postgres prometheus otel-collector</code></pre></div>
+<div class="step"><h3>Exporte configuração crítica</h3><pre><code>export DATABASE_URL='postgres://postgres:postgres@localhost:5432/catalog-service?sslmode=disable'
+export JWT_SECRET="$(openssl rand -base64 48)"
+export AUTH_COOKIE_SECURE=false</code></pre></div>
+<div class="step"><h3>Prepare o projeto</h3><pre><code>make tools
+make migrate-up
+make generate
+make verify</code></pre></div>
+<div class="step"><h3>Crie o primeiro usuário administrador</h3><pre><code>PASSWORD_HASH="$(go run ./cmd/hash-password 'change-this-password')"
+
+docker compose exec -T postgres psql \
+  -U postgres \
+  -d catalog-service \
+  -v password_hash="$PASSWORD_HASH" &lt;&lt;'SQL'
+INSERT INTO users (id, email, password_hash, roles)
+VALUES (
+  '00000000-0000-4000-8000-000000000001',
+  'admin@example.com',
+  :'password_hash',
+  ARRAY['admin']
+)
+ON CONFLICT (email) DO NOTHING;
+SQL</code></pre></div>
+<div class="step"><h3>Execute a API</h3><pre><code>make run</code></pre></div>
+</div>
+<h3>Login</h3>
+<pre><code>curl -i -c cookies.txt \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","password":"change-this-password"}' \
+  http://localhost:8080/auth/login</code></pre>
+<p>A resposta retorna o <strong>access token</strong>; o refresh token é gravado em cookie <code>HttpOnly</code> com <code>SameSite=Strict</code>.</p>
+<h3>Usar rota protegida</h3>
+<pre><code>ACCESS_TOKEN='cole-o-access-token-aqui'
+
+curl http://localhost:8080/orders \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+curl http://localhost:8080/admin/ping \
+  -H "Authorization: Bearer $ACCESS_TOKEN"</code></pre>
+<h3>Refresh e logout</h3>
+<pre><code>curl -i -b cookies.txt -c cookies.txt -X POST \
+  http://localhost:8080/auth/refresh
+
+curl -i -b cookies.txt -c cookies.txt -X POST \
+  http://localhost:8080/auth/logout</code></pre>
+<div class="danger"><strong>Produção</strong>Use HTTPS e defina <code>AUTH_COOKIE_SECURE=true</code>. Não reutilize o secret de desenvolvimento do Compose.</div>
+</section>
+
+<section id="observabilidade" data-search="observabilidade slog prometheus metrics opentelemetry otlp pprof traces">
+<h2>13. Observabilidade</h2>
+<table><thead><tr><th>Área</th><th>Padrão</th><th>Uso</th></tr></thead><tbody>
+<tr><td>Logs</td><td><code>log/slog</code></td><td>Texto em dev, JSON em produção, request ID e trace ID.</td></tr>
+<tr><td>Métricas</td><td>Prometheus</td><td><code>GET /metrics</code>; requests, duração e in-flight.</td></tr>
+<tr><td>Tracing</td><td>OpenTelemetry / OTLP gRPC</td><td>Collector em <code>otel-collector:4317</code> no Compose.</td></tr>
+<tr><td>Profiling</td><td><code>net/http/pprof</code></td><td>Desabilitado por padrão; bind privado em <code>127.0.0.1:6060</code>.</td></tr>
+</tbody></table>
+<h3>Stack de desenvolvimento</h3>
+<pre><code>docker compose up -d prometheus otel-collector
+
+# UI do Prometheus
+http://localhost:9090
+
+# Métricas da API
+http://localhost:8080/metrics</code></pre>
+<p>O Collector gerado usa exporter de debug. Para retenção/consulta real, conecte Tempo, Jaeger ou outro backend OTLP.</p>
+<h3>Habilitar pprof</h3>
+<pre><code>export PPROF_ENABLED=true
+export PPROF_ADDRESS=127.0.0.1:6060
+make run</code></pre>
+</section>
+
+<section id="event-driven" data-search="event driven redis kafka outbox worker redpanda dlq idempotência">
+<h2>14. Usando <code>event-driven-api</code></h2>
+<pre><code>gosvc new order-events \
+  --module github.com/acme/order-events \
+  --preset event-driven-api
+
+cd order-events
+export DATABASE_URL='postgres://postgres:postgres@localhost:5432/order-events?sslmode=disable'
+export JWT_SECRET="$(openssl rand -base64 48)"
+
+make tools
+make migrate-up
+make generate
+make verify</code></pre>
+<h3>Subir o stack</h3>
+<pre><code>docker compose up -d postgres redis kafka prometheus otel-collector</code></pre>
+<p>O Kafka/Redpanda possui listeners separados:</p>
+<table><thead><tr><th>Origem</th><th>Broker</th></tr></thead><tbody><tr><td>Processos no host</td><td><code>127.0.0.1:9092</code></td></tr><tr><td>Containers</td><td><code>kafka:29092</code></td></tr></tbody></table>
+<h3>Executar API e worker separadamente</h3>
+<pre><code># Terminal 1
+make run
+
+# Terminal 2
+make run-worker</code></pre>
+<h3>Fluxo arquitetural</h3>
+<div class="flow"><span>Transação de negócio</span><b>→</b><span>PostgreSQL Outbox</span><b>→</b><span>Worker</span><b>→</b><span>Kafka</span><b>→</b><span>Consumer</span><b>→</b><span>Redis idempotency</span></div>
+<p>Retries são limitados e mensagens terminais podem ser enviadas ao tópico com o sufixo de DLQ configurado. A reserva de idempotência é liberada quando a DLQ também falha, permitindo redelivery.</p>
+</section>
+
+<section id="kubernetes" data-search="kubernetes k8s namespace deployment service secret migration job network policy">
+<h2>15. Kubernetes</h2>
+<p>O preset <code>event-driven-api</code> gera manifests em <code>deployments/k8s</code>:</p>
+<pre><code>00-namespace.yaml
+10-configmap.yaml
+11-secret.example
+20-api-deployment.yaml
+21-worker-deployment.yaml
+30-service.yaml
+40-migration-job.yaml
+50-network-policy.yaml</code></pre>
+<div class="steps">
+<div class="step"><h3>Crie o Secret real</h3><pre><code>cp deployments/k8s/11-secret.example deployments/k8s/11-secret.yaml
+# Edite e substitua todos os placeholders.</code></pre></div>
+<div class="step"><h3>Revise as imagens</h3><p>Substitua nomes/tags pelos artefatos do seu registry.</p></div>
+<div class="step"><h3>Valide localmente</h3><pre><code>make k8s-validate</code></pre></div>
+<div class="step"><h3>Aplique</h3><pre><code>make k8s-apply</code></pre></div>
+</div>
+<div class="warning"><strong>Infra externa</strong>Os manifests assumem que PostgreSQL, Redis, Kafka e OpenTelemetry serão fornecidos por serviços gerenciados ou implantados separadamente.</div>
+</section>
+
+<section id="qualidade" data-search="testes tdd coverage race vet lint vulncheck make verify ci">
+<h2>16. Testes e quality gates</h2>
+<table><thead><tr><th>Comando</th><th>Objetivo</th></tr></thead><tbody>
+<tr><td><code>make test</code></td><td>Testes unitários.</td></tr>
+<tr><td><code>make test-integration</code></td><td>Testes PostgreSQL com build tag <code>integration</code>.</td></tr>
+<tr><td><code>make coverage-check</code></td><td>Exige cobertura mínima (padrão 80%).</td></tr>
+<tr><td><code>make test-race</code></td><td>Race detector.</td></tr>
+<tr><td><code>make vet</code></td><td><code>go vet</code>.</td></tr>
+<tr><td><code>make lint</code></td><td>GolangCI-Lint.</td></tr>
+<tr><td><code>make vulncheck</code></td><td>govulncheck.</td></tr>
+<tr><td><code>make generate-check</code></td><td>Regenera OpenAPI/sqlc e exige Git limpo nesses arquivos.</td></tr>
+<tr><td><strong><code>make verify</code></strong></td><td>Executa o conjunto principal de quality gates.</td></tr>
+</tbody></table>
+<p>Para elevar a cobertura:</p>
+<pre><code>make coverage-check COVERAGE_MINIMUM=85</code></pre>
+</section>
+
+<section id="diagnosticos" data-search="validate doctor verify architecture check diagnóstico projeto">
+<h2>17. Diagnósticos do gosvc</h2>
+<pre><code>gosvc validate --project ./catalog-service
+gosvc check architecture --project ./catalog-service
+gosvc doctor --project ./catalog-service
+gosvc verify --project ./catalog-service --static</code></pre>
+<h3><code>validate</code></h3><ul class="check"><li>Consistência entre <code>project.yaml</code> e <code>go.mod</code></li><li>Schema/preset/features do manifest</li><li>Arquivos ausentes ou modificados</li><li>Checksums de arquivos gerados</li><li>Resource registry e migrations estáveis</li><li>Paths OpenAPI esperados</li><li>Fronteiras da Clean Architecture</li></ul>
+<h3><code>doctor</code></h3><p>Procura primeiro ferramentas no <code>./bin</code> do projeto e depois no <code>PATH</code>.</p>
+<h3><code>verify</code></h3><p>Com <code>--static</code>, executa somente validação estrutural. Sem essa flag, também executa testes, race, vet, build, lint e vulnerabilidades.</p>
+</section>
+
+<section id="regeneracao" data-search="regeneração ownership checksum skip protect force dry run idempotência">
+<h2>18. Regeneração segura</h2>
+<table><thead><tr><th>Situação</th><th>Ação</th></tr></thead><tbody>
+<tr><td>Arquivo igual ao esperado</td><td><code>SKIP</code></td></tr>
+<tr><td>Arquivo <code>user</code> modificado</td><td><code>PROTECT</code> — preservado.</td></tr>
+<tr><td>Arquivo <code>generated</code> modificado</td><td>Conflito — operação interrompida.</td></tr>
+<tr><td>Recuperar generated explicitamente</td><td>Use <code>--force</code>.</td></tr>
+<tr><td>Mesma definição de resource novamente</td><td>Nenhuma mudança.</td></tr>
+</tbody></table>
+<p>Antes de criar/regenerar, use dry-run:</p>
+<pre><code>gosvc new catalog-service \
+  --module github.com/acme/catalog-service \
+  --preset production-api \
+  --dry-run</code></pre>
+<div class="note"><strong>Atomicidade</strong>O gerador monta e valida o plano antes de ativar a nova árvore, reduzindo risco de projeto parcialmente atualizado.</div>
+</section>
+
+<section id="upgrade" data-search="upgrade backup rollback schema manifest notes dry run backups">
+<h2>19. Upgrade, backup e rollback</h2>
+<div class="steps">
+<div class="step"><h3>Veja as notas</h3><pre><code>gosvc upgrade notes --from 1.0.0 --to 1.1.0</code></pre></div>
+<div class="step"><h3>Simule</h3><pre><code>gosvc upgrade --project ./catalog-service --to 1.1.0 --dry-run</code></pre></div>
+<div class="step"><h3>Aplique</h3><pre><code>gosvc upgrade --project ./catalog-service --to 1.1.0</code></pre><p>Por padrão, um ZIP é criado em <code>.gosvc/backups/</code>.</p></div>
+<div class="step"><h3>Liste backups</h3><pre><code>gosvc upgrade backups --project ./catalog-service</code></pre></div>
+<div class="step"><h3>Simule rollback</h3><pre><code>gosvc upgrade rollback \
+  --project ./catalog-service \
+  --backup latest \
+  --dry-run</code></pre></div>
+<div class="step"><h3>Restaure</h3><pre><code>gosvc upgrade rollback \
+  --project ./catalog-service \
+  --backup latest</code></pre></div>
+</div>
+<div class="danger"><strong>Rollback é snapshot completo</strong>Ele restaura inclusive arquivos do usuário. Faça commit ou stash antes.</div>
+</section>
+
+<section id="plugins" data-search="plugins list validate checksum run audit external protocol json">
+<h2>20. Plugins externos</h2>
+<p>Plugins ficam em <code>.gosvc/plugins/&lt;nome&gt;/</code> e são executados como processos filhos por um protocolo JSON versionado.</p>
+<pre><code>gosvc plugins list --project .
+gosvc plugins validate --project .
+gosvc plugins checksum .gosvc/plugins/audit/bin/audit
+gosvc plugins run audit --project . --dry-run
+gosvc plugins run audit --project . --timeout 10s</code></pre>
+<h3>Modelo de segurança</h3>
+<ul class="check"><li>Manifest validado</li><li>Checksum SHA-256 do executável</li><li>Symlinks rejeitados</li><li>Timeout e limite de saída</li><li>Plugin recebe snapshot temporário, não o projeto real</li><li>Somente artefatos declarados na resposta podem ser aplicados</li></ul>
+<div class="danger"><strong>Não é sandbox de sistema operacional</strong>O executável continua rodando como o usuário atual. Execute apenas plugins confiáveis.</div>
+</section>
+
+<section id="certificacao" data-search="acceptance certification certify static real blocked pass fail docker e2e">
+<h2>21. Acceptance e certificação</h2>
+<h3>Acceptance offline</h3>
+<pre><code>gosvc acceptance
+gosvc acceptance --json &gt; acceptance-report.json</code></pre>
+<p>Gera os quatro presets, adiciona um resource representativo nos presets com banco, valida arquitetura, artefatos e idempotência.</p>
+<h3>Certificação estática</h3>
+<pre><code>gosvc certify --mode static</code></pre>
+<h3>Certificação real E2E</h3>
+<pre><code>gosvc certify --mode real --require-real</code></pre>
+<table><thead><tr><th>Status</th><th>Significado</th></tr></thead><tbody><tr><td><span class="tag ok">PASS</span></td><td>Executou e passou.</td></tr><tr><td><span class="tag" style="color:var(--danger)">FAIL</span></td><td>Executou e falhou.</td></tr><tr><td><span class="tag warn">BLOCKED</span></td><td>Infra necessária não existe; não é confundido com aprovação.</td></tr><tr><td><span class="tag">SKIPPED</span></td><td>Não aplicável ou omitido por política.</td></tr></tbody></table>
+<p>O modo real exercita Go/toolchain, Docker, migrations, PostgreSQL, HTTP CRUD, auth, Redis, Kafka, Outbox e ferramentas de segurança conforme o preset.</p>
+</section>
+
+<section id="release" data-search="release github prepare github plan snapshot verify tag publication owner repo">
+<h2>22. Release e publicação no GitHub</h2>
+<div class="steps">
+<div class="step"><h3>Prepare a identidade definitiva</h3><pre><code>gosvc release prepare \
+  --repository ailtonmacedo/gosvc \
+  --dry-run
+
+gosvc release prepare \
+  --repository ailtonmacedo/gosvc</code></pre></div>
+<div class="step"><h3>Gere o plano de publicação</h3><pre><code>gosvc release github-plan \
+  --repository ailtonmacedo/gosvc \
+  --version 1.1.0</code></pre></div>
+<div class="step"><h3>Preflight</h3><pre><code>gosvc release check \
+  --version 1.1.0 \
+  --repository ailtonmacedo/gosvc</code></pre></div>
+<div class="step"><h3>Snapshot multiplataforma</h3><pre><code>SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" \
+  gosvc release snapshot \
+  --version 1.1.0 \
+  --repository ailtonmacedo/gosvc \
+  --output dist \
+  --parallel 3</code></pre></div>
+<div class="step"><h3>Verifique offline</h3><pre><code>gosvc release verify --dist dist</code></pre></div>
+<div class="step"><h3>Publique a tag somente após CI/certificação verdes</h3><pre><code>git tag -a v1.1.0 -m "gosvc v1.1.0"
+git push origin v1.1.0</code></pre></div>
+</div>
+<p>O snapshot gera Linux/macOS/Windows para amd64/arm64, checksums, SBOM SPDX, manifesto, release evidence, installers e metadados Homebrew/Scoop.</p>
+</section>
+
+<section id="problemas" data-search="troubleshooting problemas erro database url jwt secret go 1.25 generated conflict docker openapi docs">
+<h2>23. Problemas comuns</h2>
+<div class="grid">
+<div class="card"><h3><code>DATABASE_URL is required</code></h3><p>O preset com banco está ativo e a variável não foi exportada. Defina <code>DATABASE_URL</code> antes de <code>make run</code>.</p></div>
+<div class="card"><h3><code>JWT_SECRET must contain at least 32 bytes</code></h3><p>Gere um secret forte: <code>openssl rand -base64 48</code>.</p></div>
+<div class="card"><h3>Copiei <code>.env</code>, mas não funcionou</h3><p>O app não carrega dotenv. Use <code>set -a; . ./.env; set +a</code>, variáveis da IDE, ou Compose.</p></div>
+<div class="card"><h3>Arquivo generated modificado</h3><p>Use <code>gosvc validate</code> para identificar. Regenere; use <code>--force</code> somente se realmente quiser restaurar o artefato gerenciado.</p></div>
+<div class="card"><h3>Go incompatível</h3><p>Presets com PostgreSQL requerem Go 1.25+ na linha atual. Rode <code>gosvc doctor</code>.</p></div>
+<div class="card"><h3><code>/docs</code> sem interface</h3><p>O ReDoc visual pode precisar acessar o bundle configurado. O contrato bruto segue disponível em <code>/openapi.yaml</code>.</p></div>
+<div class="card"><h3>Kafka funciona no container, não no host</h3><p>No host use <code>127.0.0.1:9092</code>; entre containers, <code>kafka:29092</code>.</p></div>
+<div class="card"><h3><code>BLOCKED</code> na certificação</h3><p>Não é aprovação nem falha funcional. Significa que a infraestrutura/toolchain necessária não estava disponível para executar o check.</p></div>
+</div>
+</section>
+
+<section id="referencia" data-search="referência comandos cli new add validate doctor verify upgrade plugins completion release acceptance certify">
+<h2>24. Referência rápida de comandos</h2>
+<table><thead><tr><th>Comando</th><th>Uso</th></tr></thead><tbody>
+<tr><td><code>gosvc version</code></td><td>Versão, commit e build time.</td></tr>
+<tr><td><code>gosvc validate-config [--print] project.yaml</code></td><td>Valida configuração declarativa.</td></tr>
+<tr><td><code>gosvc new NAME --module MODULE --preset PRESET</code></td><td>Cria/regenera projeto.</td></tr>
+<tr><td><code>gosvc add resource NAME --fields ... --crud</code></td><td>Adiciona CRUD.</td></tr>
+<tr><td><code>gosvc validate --project .</code></td><td>Valida projeto e manifest.</td></tr>
+<tr><td><code>gosvc doctor --project .</code></td><td>Verifica ambiente e ferramentas.</td></tr>
+<tr><td><code>gosvc check architecture --project .</code></td><td>Valida imports da Clean Architecture.</td></tr>
+<tr><td><code>gosvc verify --project . [--static]</code></td><td>Validação estrutural / quality gates.</td></tr>
+<tr><td><code>gosvc upgrade ...</code></td><td>Upgrade, backups, rollback e notas.</td></tr>
+<tr><td><code>gosvc plugins ...</code></td><td>Lista, valida, checksum e executa plugins.</td></tr>
+<tr><td><code>gosvc completion SHELL</code></td><td>Completion para Bash/Zsh/Fish/PowerShell.</td></tr>
+<tr><td><code>gosvc acceptance</code></td><td>Matriz offline dos presets.</td></tr>
+<tr><td><code>gosvc certify</code></td><td>Certificação estática ou real.</td></tr>
+<tr><td><code>gosvc release prepare/check/snapshot/verify</code></td><td>Pipeline de release.</td></tr>
+<tr><td><code>gosvc release github-plan</code></td><td>Readiness de publicação GitHub.</td></tr>
+</tbody></table>
+<h3>Sequência diária recomendada em um projeto</h3>
+<pre><code># Depois de alterações de domínio/HTTP/SQL
+make generate        # se OpenAPI/SQL mudou
+make test
+make coverage-check
+make verify
+
+gosvc validate --project .
+gosvc check architecture --project .</code></pre>
+<h3>Sequência antes de merge/release</h3>
+<pre><code>make verify
+gosvc acceptance
+gosvc certify --mode static
+# CI conectado:
+gosvc certify --mode real --require-real</code></pre>
+</section>
+
+<div class="footer">gosvc · Guia standalone gerado a partir da base da Sprint 16 · Abra este arquivo diretamente no navegador.</div>
+</div>
+</main>
+</div>
+<script>
+(function(){
+  document.querySelectorAll('pre').forEach(function(pre){
+    var b=document.createElement('button'); b.className='copy'; b.type='button'; b.textContent='Copiar';
+    b.addEventListener('click',function(){navigator.clipboard.writeText(pre.innerText.replace(/^Copiar\n?/,'')); b.textContent='Copiado'; b.classList.add('copied'); setTimeout(function(){b.textContent='Copiar';b.classList.remove('copied')},1300)});
+    pre.appendChild(b);
+  });
+  var input=document.getElementById('search');
+  input.addEventListener('input',function(){var q=input.value.trim().toLowerCase();document.querySelectorAll('section').forEach(function(s){var hay=(s.innerText+' '+(s.dataset.search||'')).toLowerCase();s.classList.toggle('hide-search',q && !hay.includes(q));});});
+  var links=[].slice.call(document.querySelectorAll('.nav a'));
+  var sections=links.map(function(a){return document.querySelector(a.getAttribute('href'))}).filter(Boolean);
+  var obs=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){links.forEach(function(a){a.classList.toggle('active',a.getAttribute('href')==='#'+e.target.id)})}})},{rootMargin:'-15% 0px -75% 0px'});
+  sections.forEach(function(s){obs.observe(s)});
+})();
+</script>
+</body>
+</html>

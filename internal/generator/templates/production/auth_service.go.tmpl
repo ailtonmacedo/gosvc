@@ -1,0 +1,87 @@
+package application
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+
+	"{{.Config.Project.Module}}/internal/domain"
+	"{{.Config.Project.Module}}/internal/ports"
+)
+
+type AuthService struct {
+	repository ports.AuthRepository
+	passwords  ports.PasswordVerifier
+	tokens     ports.TokenManager
+	refreshTTL time.Duration
+}
+
+func NewAuthService(repository ports.AuthRepository, passwords ports.PasswordVerifier, tokens ports.TokenManager, refreshTTL time.Duration) *AuthService {
+	return &AuthService{repository: repository, passwords: passwords, tokens: tokens, refreshTTL: refreshTTL}
+}
+
+func (s *AuthService) Login(ctx context.Context, email, password string) (domain.TokenPair, error) {
+	user, err := s.repository.FindUserByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
+	if err != nil {
+		if errors.Is(err, domain.ErrInvalidCredentials) {
+			return domain.TokenPair{}, domain.ErrInvalidCredentials
+		}
+		return domain.TokenPair{}, fmt.Errorf("find authentication user: %w", err)
+	}
+	if !user.Active || s.passwords.Compare(user.PasswordHash, password) != nil {
+		return domain.TokenPair{}, domain.ErrInvalidCredentials
+	}
+	return s.issue(ctx, user)
+}
+
+func (s *AuthService) Refresh(ctx context.Context, raw string) (domain.TokenPair, error) {
+	oldHash, err := s.tokens.HashRefreshToken(raw)
+	if err != nil {
+		return domain.TokenPair{}, domain.ErrInvalidRefreshToken
+	}
+	refresh, newHash, err := s.tokens.NewRefreshToken()
+	if err != nil {
+		return domain.TokenPair{}, fmt.Errorf("create refresh token: %w", err)
+	}
+	session := domain.AuthSession{ID: uuid.New(), TokenHash: newHash, ExpiresAt: time.Now().Add(s.refreshTTL), CreatedAt: time.Now()}
+	user, err := s.repository.RotateSession(ctx, oldHash, session)
+	if err != nil {
+		return domain.TokenPair{}, err
+	}
+	access, expiresAt, err := s.tokens.IssueAccessToken(user)
+	if err != nil {
+		return domain.TokenPair{}, fmt.Errorf("issue access token: %w", err)
+	}
+	return domain.TokenPair{AccessToken: access, TokenType: "Bearer", ExpiresAt: expiresAt, RefreshToken: refresh}, nil
+}
+
+func (s *AuthService) Logout(ctx context.Context, raw string) error {
+	hash, err := s.tokens.HashRefreshToken(raw)
+	if err != nil {
+		return domain.ErrInvalidRefreshToken
+	}
+	if err := s.repository.RevokeSession(ctx, hash); err != nil && !errors.Is(err, domain.ErrInvalidRefreshToken) {
+		return err
+	}
+	return nil
+}
+
+func (s *AuthService) issue(ctx context.Context, user domain.AuthUser) (domain.TokenPair, error) {
+	access, expiresAt, err := s.tokens.IssueAccessToken(user)
+	if err != nil {
+		return domain.TokenPair{}, fmt.Errorf("issue access token: %w", err)
+	}
+	refresh, hash, err := s.tokens.NewRefreshToken()
+	if err != nil {
+		return domain.TokenPair{}, fmt.Errorf("create refresh token: %w", err)
+	}
+	session := domain.AuthSession{ID: uuid.New(), UserID: user.ID, TokenHash: hash, ExpiresAt: time.Now().Add(s.refreshTTL), CreatedAt: time.Now()}
+	if err := s.repository.CreateSession(ctx, session); err != nil {
+		return domain.TokenPair{}, fmt.Errorf("create auth session: %w", err)
+	}
+	return domain.TokenPair{AccessToken: access, TokenType: "Bearer", ExpiresAt: expiresAt, RefreshToken: refresh}, nil
+}
