@@ -46,7 +46,7 @@ jobs:
           mkdir -p artifacts
           go run ./cmd/gosvc certify --mode real --require-real --timeout 4m --json | tee artifacts/certification-real.json
       - name: Upload certification evidence
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: certification-${{ env.VERSION }}
           path: artifacts/certification-real.json
