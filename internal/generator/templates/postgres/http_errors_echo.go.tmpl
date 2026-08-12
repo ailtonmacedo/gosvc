@@ -1,0 +1,11 @@
+package httpserver
+
+import "github.com/labstack/echo/v4"
+
+func apiError(c echo.Context, status int, code, message string) error {
+    return c.JSON(status, map[string]string{
+        "code": code,
+        "message": message,
+        "request_id": c.Response().Header().Get(echo.HeaderXRequestID),
+    })
+}

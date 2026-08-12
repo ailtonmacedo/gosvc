@@ -1,0 +1,9 @@
+package redisstore
+
+import "testing"
+
+func TestStoreType(t *testing.T) {
+	t.Parallel()
+	var store *Store
+	if store != nil { t.Fatal("zero store must be nil") }
+}

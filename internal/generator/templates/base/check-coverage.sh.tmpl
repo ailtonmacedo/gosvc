@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+
+profile="${1:-coverage.out}"
+minimum="${COVERAGE_MINIMUM:-{{.Config.Quality.Coverage.Minimum}}}"
+filtered="${profile%.out}.filtered.out"
+
+if [ ! -f "$profile" ]; then
+  echo "coverage profile not found: $profile" >&2
+  exit 1
+fi
+
+awk 'NR == 1 || $1 ~ /\/internal\/(domain|application|infrastructure\/http)\//' "$profile" > "$filtered"
+
+if [ "$(wc -l < "$filtered" | tr -d ' ')" -le 1 ]; then
+  echo "coverage: n/a (no business-layer statements yet)"
+  exit 0
+fi
+
+total="$(go tool cover -func="$filtered" | awk '/^total:/ { gsub(/%/, "", $3); print $3 }')"
+
+if [ -z "$total" ]; then
+  echo "could not calculate total coverage" >&2
+  exit 1
+fi
+
+awk -v total="$total" -v minimum="$minimum" 'BEGIN {
+  printf "coverage: %.1f%% (minimum %.1f%%)\n", total, minimum
+  if ((total + 0) < (minimum + 0)) exit 1
+}'

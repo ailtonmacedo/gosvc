@@ -1,0 +1,26 @@
+package ports
+
+import (
+	"context"
+	"time"
+
+	"github.com/google/uuid"
+
+	"{{.Config.Project.Module}}/internal/domain"
+)
+
+type EventPublisher interface {
+	Publish(ctx context.Context, topic, key string, payload []byte) error
+}
+
+type OutboxRepository interface {
+	Enqueue(ctx context.Context, event domain.Event) error
+	ClaimBatch(ctx context.Context, limit int) ([]domain.Event, error)
+	MarkPublished(ctx context.Context, id uuid.UUID) error
+	MarkFailed(ctx context.Context, id uuid.UUID, cause string, terminal bool) error
+}
+
+type IdempotencyStore interface {
+	Acquire(ctx context.Context, key string, ttl time.Duration) (bool, error)
+	Release(ctx context.Context, key string) error
+}

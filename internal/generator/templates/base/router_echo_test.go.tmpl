@@ -1,0 +1,47 @@
+package httpserver
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"{{.Config.Project.Module}}/internal/config"
+)
+
+func TestEchoHealthEndpoints(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		path      string
+		readiness ReadinessCheck
+		readTime  time.Duration
+		want      int
+	}{
+		{name: "live", path: "/health/live", readTime: time.Second, want: http.StatusOK},
+		{name: "ready", path: "/health/ready", readiness: func(context.Context) error { return nil }, readTime: 5 * time.Second, want: http.StatusOK},
+		{name: "not ready", path: "/health/ready", readiness: func(context.Context) error { return errors.New("database unavailable") }, readTime: time.Second, want: http.StatusServiceUnavailable},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := config.Config{HTTP: config.HTTPConfig{
+				Address: ":8080", ReadTimeout: test.readTime, WriteTimeout: time.Second,
+				ShutdownTimeout: time.Second, MaxBodySize: 1 << 20,
+			}}
+			handler, err := NewRouter(cfg, test.readiness, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := httptest.NewRequest(http.MethodGet, test.path, nil)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != test.want {
+				t.Fatalf("status=%d want=%d body=%s", response.Code, test.want, response.Body.String())
+			}
+		})
+	}
+}

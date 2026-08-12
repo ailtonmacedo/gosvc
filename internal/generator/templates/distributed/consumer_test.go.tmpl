@@ -1,0 +1,32 @@
+package kafka
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/twmb/franz-go/pkg/kgo"
+)
+
+type fakeHandler struct { err error; calls int }
+func (f *fakeHandler) Handle(context.Context,string,[]byte) error { f.calls++; return f.err }
+
+type fakePublisher struct { err error; topics []string }
+func (f *fakePublisher) Publish(_ context.Context, topic, _ string, _ []byte) error { f.topics=append(f.topics,topic); return f.err }
+
+type fakeIdempotency struct { acquired bool; acquireErr error; releases int }
+func (f *fakeIdempotency) Acquire(context.Context,string,time.Duration)(bool,error){return f.acquired,f.acquireErr}
+func (f *fakeIdempotency) Release(context.Context,string)error{f.releases++;return nil}
+
+func TestConsumerHandleRecord(t *testing.T) {
+	t.Parallel()
+	record:=&kgo.Record{Topic:"orders",Partition:0,Offset:1,Key:[]byte("1"),Value:[]byte(`{"id":1}`)}
+	tests:=[]struct{name string;handlerErr,publisherErr error;acquired bool;wantErr bool;wantCalls,wantReleases,wantDLQ int}{
+		{name:"success",acquired:true,wantCalls:1},
+		{name:"duplicate",acquired:false,wantCalls:0},
+		{name:"handler failure reaches dlq",handlerErr:errors.New("boom"),acquired:true,wantCalls:2,wantDLQ:1},
+		{name:"dlq failure releases idempotency",handlerErr:errors.New("boom"),publisherErr:errors.New("kafka down"),acquired:true,wantErr:true,wantCalls:2,wantReleases:1,wantDLQ:1},
+	}
+	for _,test:=range tests{test:=test;t.Run(test.name,func(t *testing.T){t.Parallel();handler:=&fakeHandler{err:test.handlerErr};publisher:=&fakePublisher{err:test.publisherErr};store:=&fakeIdempotency{acquired:test.acquired};consumer:=&Consumer{publisher:publisher,idempotency:store,maxRetries:1,backoff:time.Nanosecond,dlqSuffix:".dlq"};err:=consumer.handleRecord(context.Background(),record,handler);if(err!=nil)!=test.wantErr{t.Fatalf("err=%v wantErr=%v",err,test.wantErr)};if handler.calls!=test.wantCalls{t.Fatalf("handler calls=%d want=%d",handler.calls,test.wantCalls)};if store.releases!=test.wantReleases{t.Fatalf("releases=%d want=%d",store.releases,test.wantReleases)};if len(publisher.topics)!=test.wantDLQ{t.Fatalf("dlq=%d want=%d",len(publisher.topics),test.wantDLQ)}})}
+}

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gosvc.dev/schema/plugin-v3.json",
+  "title": "gosvc executable plugin manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "protocol_version", "name", "version", "description", "minimum_gosvc_version", "capabilities", "execution"],
+  "properties": {
+    "schema_version": {"const": 3},
+    "protocol_version": {"const": 1},
+    "name": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"},
+    "version": {"type": "string", "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"},
+    "description": {"type": "string", "minLength": 1},
+    "minimum_gosvc_version": {"type": "string"},
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": ["artifacts", "validation", "commands"]}
+    },
+    "entrypoint": {"type": "string", "minLength": 1},
+    "checksum": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {"enum": ["native", "docker"]},
+        "docker": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "image": {"type": "string", "pattern": "^[^@\\s]+@sha256:[0-9a-f]{64}$"},
+            "command": {
+              "type": "array",
+              "minItems": 1,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "network": {"type": "boolean", "default": false}
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"execution": {"properties": {"mode": {"const": "native"}}}}},
+      "then": {
+        "required": ["entrypoint", "checksum"],
+        "properties": {
+          "execution": {"properties": {"docker": false}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"execution": {"properties": {"mode": {"const": "docker"}}}}},
+      "then": {
+        "properties": {
+          "entrypoint": false,
+          "checksum": false,
+          "execution": {
+            "required": ["docker"],
+            "properties": {
+              "docker": {"required": ["image", "command"]}
+            }
+          }
+        }
+      }
+    }
+  ]
+}

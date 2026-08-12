@@ -1,0 +1,29 @@
+// Package bootstrap composes worker dependencies and owns lifecycle.
+package bootstrap
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"{{.Config.Project.Module}}/internal/application"
+	"{{.Config.Project.Module}}/internal/config"
+)
+
+type BuildInfo struct { Version, Commit, Time string }
+
+func RunWorker(parent context.Context, build BuildInfo) error {
+	cfg, err := config.Load()
+	if err != nil { return fmt.Errorf("load configuration: %w", err) }
+	var handler slog.Handler = slog.NewTextHandler(os.Stdout, nil)
+	if cfg.Environment == "production" { handler = slog.NewJSONHandler(os.Stdout, nil) }
+	logger := slog.New(handler).With("service", cfg.AppName, "environment", cfg.Environment, "version", build.Version, "commit", build.Commit)
+	slog.SetDefault(logger)
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	logger.Info("worker started", "build_time", build.Time)
+	return application.NewWorker().Run(ctx)
+}

@@ -1,0 +1,111 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: {{.Config.Project.Name}}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports: ["5432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d {{.Config.Project.Name}}"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+{{if eq .Preset.Name "event-driven-api"}}
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 3s
+
+  kafka:
+    image: redpandadata/redpanda:v24.3.18
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp=1
+      - --memory=512M
+      - --reserve-memory=0M
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=internal://0.0.0.0:29092,external://0.0.0.0:9092
+      - --advertise-kafka-addr=internal://kafka:29092,external://127.0.0.1:9092
+    ports: ["9092:9092"]
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q Healthy"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+{{end}}
+  api:
+    build:
+      context: .
+      args: { VERSION: dev }
+    environment:
+      APP_ENV: development
+      HTTP_PORT: {{.Config.API.Port}}
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/{{.Config.Project.Name}}?sslmode=disable
+{{if or (eq .Preset.Name "production-api") (eq .Preset.Name "event-driven-api")}}      JWT_SECRET: development-only-secret-change-me-123456789
+      JWT_ISSUER: {{.Config.Auth.AccessToken.Issuer}}
+      JWT_AUDIENCE: {{.Config.Auth.AccessToken.Audience}}
+      OTEL_TRACING_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+{{end}}{{if eq .Preset.Name "event-driven-api"}}      REDIS_ADDRESS: redis:6379
+      KAFKA_BROKERS: kafka:29092
+      KAFKA_TOPIC_PREFIX: {{.Config.Messaging.TopicPrefix}}
+      KAFKA_CONSUMER_GROUP: {{.Config.Messaging.ConsumerGroup}}
+{{end}}    ports: ["{{.Config.API.Port}}:{{.Config.API.Port}}"]
+    depends_on:
+      postgres: { condition: service_healthy }
+{{if or (eq .Preset.Name "production-api") (eq .Preset.Name "event-driven-api")}}      otel-collector: { condition: service_started }
+{{end}}{{if eq .Preset.Name "event-driven-api"}}      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
+  worker:
+    build:
+      context: .
+      args: { VERSION: dev }
+    command: ["/app/{{.Config.Project.Name}}-worker"]
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/{{.Config.Project.Name}}?sslmode=disable
+      KAFKA_BROKERS: kafka:29092
+      KAFKA_TOPIC_PREFIX: {{.Config.Messaging.TopicPrefix}}
+      KAFKA_CONSUMER_GROUP: {{.Config.Messaging.ConsumerGroup}}
+      KAFKA_MAX_RETRIES: "{{.Config.Messaging.MaxRetries}}"
+      KAFKA_RETRY_BACKOFF: {{.Config.Messaging.RetryBackoff}}
+      KAFKA_DLQ_SUFFIX: {{.Config.Messaging.DLQSuffix}}
+      OUTBOX_POLL_INTERVAL: {{.Config.Outbox.PollInterval}}
+      OUTBOX_BATCH_SIZE: "{{.Config.Outbox.BatchSize}}"
+      OUTBOX_MAX_ATTEMPTS: "{{.Config.Outbox.MaxAttempts}}"
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+{{end}}{{if or (eq .Preset.Name "production-api") (eq .Preset.Name "event-driven-api")}}
+  prometheus:
+    image: prom/prometheus:v3.12.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes: ["./deployments/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.158.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes: ["./deployments/observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro"]
+    ports: ["4317:4317"]
+{{end}}
+volumes:
+  postgres-data:
+{{if eq .Preset.Name "event-driven-api"}}  redis-data:
+{{end}}

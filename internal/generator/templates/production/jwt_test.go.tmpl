@@ -1,0 +1,86 @@
+package auth
+
+import (
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+
+	"{{.Config.Project.Module}}/internal/domain"
+)
+
+func TestJWTManagerRejectsWeakSecret(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewJWTManager("too-short", "issuer", "audience", 15*time.Minute)
+	if err == nil {
+		t.Fatal("expected weak secret error")
+	}
+}
+
+func TestJWTManagerIssuesTokensAndHashesRefreshToken(t *testing.T) {
+	t.Parallel()
+
+	manager, err := NewJWTManager("0123456789abcdef0123456789abcdef", "issuer", "audience", 15*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	access, expiresAt, err := manager.IssueAccessToken(domain.AuthUser{
+		ID:    uuid.New(),
+		Email: "user@example.com",
+		Roles: []string{"user"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if access == "" {
+		t.Fatal("expected access token")
+	}
+	if !expiresAt.After(time.Now()) {
+		t.Fatal("expected future access-token expiration")
+	}
+
+	raw, generatedHash, err := manager.NewRefreshToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raw == "" || len(generatedHash) == 0 {
+		t.Fatal("expected refresh token and hash")
+	}
+	calculatedHash, err := manager.HashRefreshToken(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(generatedHash) != string(calculatedHash) {
+		t.Fatal("refresh-token hash is not deterministic")
+	}
+}
+
+func TestJWTManagerRejectsEmptyRefreshAndInvalidAccessTokens(t *testing.T) {
+	t.Parallel()
+
+	manager, err := NewJWTManager("0123456789abcdef0123456789abcdef", "issuer", "audience", 15*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.HashRefreshToken(""); !errors.Is(err, domain.ErrInvalidRefreshToken) {
+		t.Fatalf("expected invalid refresh token, got %v", err)
+	}
+	if _, err := manager.ParseAccessToken("invalid"); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("expected unauthenticated, got %v", err)
+	}
+}
+
+func TestPasswordHashAndVerification(t *testing.T) {
+	t.Parallel()
+
+	hash, err := HashPassword("strong-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := (BcryptVerifier{}).Compare(hash, "strong-password"); err != nil {
+		t.Fatalf("compare password: %v", err)
+	}
+}

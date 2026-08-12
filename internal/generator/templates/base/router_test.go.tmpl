@@ -1,0 +1,43 @@
+package httpserver
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"{{.Config.Project.Module}}/internal/config"
+)
+
+func TestHealthEndpoints(t *testing.T) {
+	t.Parallel()
+	cfg := config.Config{
+		HTTP: config.HTTPConfig{ReadTimeout: time.Second, WriteTimeout: time.Second, MaxBodySize: 1024},
+		RateLimit: config.RateLimitConfig{RequestsPerSecond: 10, Burst: 20, EntryTTL: time.Minute, CleanupInterval: time.Minute},
+	}
+	tests := []struct {
+		name string
+		path string
+		readiness ReadinessCheck
+		want int
+	}{
+		{name: "live", path: "/health/live", want: http.StatusOK},
+		{name: "ready", path: "/health/ready", readiness: func(context.Context) error { return nil }, want: http.StatusOK},
+		{name: "not ready", path: "/health/ready", readiness: func(context.Context) error { return errors.New("database unavailable") }, want: http.StatusServiceUnavailable},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			request := httptest.NewRequest(http.MethodGet, test.path, nil)
+			response := httptest.NewRecorder()
+			router, err := NewRouter(cfg, test.readiness, nil)
+			if err != nil { t.Fatal(err) }
+			router.ServeHTTP(response, request)
+			if response.Code != test.want { t.Fatalf("status = %d, want %d", response.Code, test.want) }
+			if got := response.Header().Get("Content-Type"); got != "application/json" { t.Fatalf("Content-Type = %q", got) }
+		})
+	}
+}

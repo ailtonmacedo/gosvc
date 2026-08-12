@@ -1,0 +1,161 @@
+APP_NAME := {{.Config.Project.Name}}
+VERSION ?= dev
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)
+COVERAGE_MINIMUM ?= {{.Config.Quality.Coverage.Minimum}}
+STRICT_GIT_DRIFT ?= 0
+TOOLS_DIR := $(CURDIR)/bin
+GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
+GOLANGCI_LINT_CACHE := $(CURDIR)/.cache/golangci-lint
+GOLANGCI_LINT_CACHE_ROOT := $(GOLANGCI_LINT_CACHE)/.project-root
+GOVULNCHECK := $(TOOLS_DIR)/govulncheck
+GOLANGCI_LINT_VERSION := v2.12.2
+GOVULNCHECK_VERSION := v1.6.0
+{{if .Config.Database.Enabled}}MIGRATE := $(TOOLS_DIR)/migrate
+MIGRATE_VERSION := v4.19.1
+{{end}}{{if and .Config.Database.Enabled (eq .Config.Database.CodeGeneration "sqlc")}}SQLC := $(TOOLS_DIR)/sqlc
+SQLC_VERSION := v1.30.0
+{{end}}{{if .Config.OpenAPI.Enabled}}OAPI_CODEGEN := $(TOOLS_DIR)/oapi-codegen
+OAPI_CODEGEN_VERSION := v2.8.0
+{{end}}
+.PHONY: run{{if eq .Preset.Name "event-driven-api"}} run-worker k8s-validate k8s-apply{{end}} fmt format-check test test-race coverage coverage-check vet bootstrap tidy tidy-check lint vulncheck verify verify-strict build clean docker-build tools{{if or .Config.OpenAPI.Enabled (and .Config.Database.Enabled (eq .Config.Database.CodeGeneration "sqlc"))}} generate generate-check{{end}}{{if .Config.Database.Enabled}} migrate-up migrate-down migrate-version docker-up docker-down test-integration{{end}}
+
+run:
+{{if eq .Preset.Name "bare"}}	go run ./cmd/app
+{{else if eq .Preset.Name "worker"}}	go run ./cmd/worker
+{{else}}	go run ./cmd/api
+{{end}}{{if eq .Preset.Name "event-driven-api"}}
+run-worker:
+	go run ./cmd/worker
+
+k8s-validate:
+	kubectl apply --dry-run=client -f deployments/k8s
+
+k8s-apply:
+	kubectl apply -f deployments/k8s
+{{end}}
+fmt:
+	gofmt -w $$(find . -name '*.go' -not -path './vendor/*')
+
+format-check:
+	test -z "$$(gofmt -l .)"
+
+test:
+	go test ./...
+
+test-race:
+	go test -race ./...
+
+coverage:
+	go test -covermode=atomic -coverprofile=coverage.out ./...
+
+coverage-check: coverage
+	COVERAGE_MINIMUM=$(COVERAGE_MINIMUM) ./scripts/check-coverage.sh coverage.out
+
+vet:
+	go vet ./...
+
+bootstrap: tidy{{if or .Config.OpenAPI.Enabled (and .Config.Database.Enabled (eq .Config.Database.CodeGeneration "sqlc"))}} generate{{end}}
+	@echo "Bootstrap complete. Commit go.mod/go.sum and generated files before relying on strict CI drift gates."
+
+tidy:
+	go mod tidy
+
+tidy-check:
+	go mod tidy
+	@if [ "$$(git rev-parse --show-toplevel 2>/dev/null)" = "$$(pwd -P)" ]; then \
+		drift="$$(git status --porcelain -- go.mod go.sum)"; \
+		if [ -n "$$drift" ]; then \
+			if [ "$(STRICT_GIT_DRIFT)" = "1" ]; then \
+				echo "ERROR module metadata drift detected; run 'make tidy', review and commit go.mod/go.sum" >&2; \
+				git diff -- go.mod go.sum || true; git status --short -- go.mod go.sum >&2; exit 1; \
+			fi; \
+			echo "UPDATE go.mod/go.sum normalized locally; review and commit them. CI enforces strict drift."; \
+		fi; \
+	else echo "SKIP git tidy drift check (project is not its own Git worktree)"; fi
+
+lint: $(GOLANGCI_LINT)
+	@mkdir -p $(GOLANGCI_LINT_CACHE)
+	@if [ -f "$(GOLANGCI_LINT_CACHE_ROOT)" ] && [ "$$(cat "$(GOLANGCI_LINT_CACHE_ROOT)")" != "$(CURDIR)" ]; then echo "RESET golangci-lint cache (project path changed)"; rm -rf $(GOLANGCI_LINT_CACHE); mkdir -p $(GOLANGCI_LINT_CACHE); fi
+	@printf '%s\n' "$(CURDIR)" > "$(GOLANGCI_LINT_CACHE_ROOT)"
+	GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) $(GOLANGCI_LINT) run
+
+vulncheck: $(GOVULNCHECK)
+	$(GOVULNCHECK) ./...
+
+verify: format-check tidy-check{{if or .Config.OpenAPI.Enabled (and .Config.Database.Enabled (eq .Config.Database.CodeGeneration "sqlc"))}} generate-check{{end}} vet lint test coverage-check test-race vulncheck build
+
+verify-strict:
+	$(MAKE) verify STRICT_GIT_DRIFT=1
+
+build:
+	mkdir -p bin
+{{if eq .Preset.Name "bare"}}	go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME) ./cmd/app
+{{else if eq .Preset.Name "worker"}}	go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME) ./cmd/worker
+{{else}}	go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME) ./cmd/api
+{{end}}{{if eq .Preset.Name "event-driven-api"}}	go build -trimpath -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)-worker ./cmd/worker
+{{end}}
+docker-build:
+	docker build --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg BUILD_TIME=$(BUILD_TIME) -t $(APP_NAME):$(VERSION) .
+{{if eq .Preset.Name "event-driven-api"}}	docker build -f Dockerfile.migrate -t $(APP_NAME)-migrate:$(VERSION) .
+{{end}}
+tools:
+	mkdir -p $(TOOLS_DIR)
+	GOBIN=$(TOOLS_DIR) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	GOBIN=$(TOOLS_DIR) go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+{{if and .Config.Database.Enabled (eq .Config.Database.CodeGeneration "sqlc")}}	GOBIN=$(TOOLS_DIR) go install github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
+{{end}}{{if .Config.Database.Enabled}}	GOBIN=$(TOOLS_DIR) go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
+{{end}}{{if .Config.OpenAPI.Enabled}}	GOBIN=$(TOOLS_DIR) go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$(OAPI_CODEGEN_VERSION)
+{{end}}
+$(GOLANGCI_LINT):
+	$(MAKE) tools
+
+$(GOVULNCHECK):
+	$(MAKE) tools
+{{if or .Config.OpenAPI.Enabled (and .Config.Database.Enabled (eq .Config.Database.CodeGeneration "sqlc"))}}
+generate:{{if and .Config.Database.Enabled (eq .Config.Database.CodeGeneration "sqlc")}} $(SQLC){{end}}{{if .Config.OpenAPI.Enabled}} $(OAPI_CODEGEN){{end}}
+{{if .Config.OpenAPI.Enabled}}	$(OAPI_CODEGEN) --config api/oapi-codegen.yaml api/openapi.yaml
+{{end}}{{if and .Config.Database.Enabled (eq .Config.Database.CodeGeneration "sqlc")}}	$(SQLC) generate
+{{end}}
+generate-check: generate
+	@if [ "$$(git rev-parse --show-toplevel 2>/dev/null)" = "$$(pwd -P)" ]; then \
+		drift="$$(git status --porcelain -- internal/generated api/openapi.yaml db/queries sqlc.yaml)"; \
+		if [ -n "$$drift" ]; then \
+			if [ "$(STRICT_GIT_DRIFT)" = "1" ]; then echo "ERROR generated-code drift detected" >&2; git status --short -- internal/generated api/openapi.yaml db/queries sqlc.yaml >&2; exit 1; fi; \
+			echo "UPDATE generated artifacts refreshed locally; review and commit them. CI enforces strict drift."; \
+		fi; \
+	else echo "SKIP git generated drift check (project is not its own Git worktree)"; fi
+{{if and .Config.Database.Enabled (eq .Config.Database.CodeGeneration "sqlc")}}
+$(SQLC):
+	$(MAKE) tools
+{{end}}{{if .Config.OpenAPI.Enabled}}
+$(OAPI_CODEGEN):
+	$(MAKE) tools
+{{end}}{{end}}{{if .Config.Database.Enabled}}
+$(MIGRATE):
+	$(MAKE) tools
+
+migrate-up: $(MIGRATE)
+	test -n "$$DATABASE_URL"
+	$(MIGRATE) -path db/migrations -database "$$DATABASE_URL" up
+
+migrate-down: $(MIGRATE)
+	test -n "$$DATABASE_URL"
+	$(MIGRATE) -path db/migrations -database "$$DATABASE_URL" down 1
+
+migrate-version: $(MIGRATE)
+	test -n "$$DATABASE_URL"
+	$(MIGRATE) -path db/migrations -database "$$DATABASE_URL" version
+
+test-integration:
+	go test -tags=integration ./tests/integration/...
+
+docker-up:
+	docker compose up --build
+
+docker-down:
+	docker compose down
+{{end}}
+clean:
+	rm -rf bin .cache coverage.out coverage.filtered.out

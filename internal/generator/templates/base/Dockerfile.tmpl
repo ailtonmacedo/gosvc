@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1
+FROM golang:{{.DockerGoVersion}}-bookworm AS builder
+WORKDIR /src
+COPY go.mod ./
+RUN go mod download
+COPY . .
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_TIME=unknown
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildTime=${BUILD_TIME}" -o /out/{{.Config.Project.Name}} {{if eq .Preset.Name "bare"}}./cmd/app{{else if eq .Preset.Name "worker"}}./cmd/worker{{else}}./cmd/api{{end}}
+{{if eq .Preset.Name "event-driven-api"}}RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildTime=${BUILD_TIME}" -o /out/{{.Config.Project.Name}}-worker ./cmd/worker
+{{end}}FROM gcr.io/distroless/static-debian12:nonroot
+WORKDIR /app
+COPY --from=builder /out/{{.Config.Project.Name}} /app/{{.Config.Project.Name}}
+{{if eq .Preset.Name "event-driven-api"}}COPY --from=builder /out/{{.Config.Project.Name}}-worker /app/{{.Config.Project.Name}}-worker
+{{end}}USER nonroot:nonroot
+{{if .Config.API.Enabled}}EXPOSE {{.Config.API.Port}}
+{{end}}ENTRYPOINT ["/app/{{.Config.Project.Name}}"]

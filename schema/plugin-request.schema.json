@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gosvc.dev/schema/plugin-request-v1.json",
+  "title": "gosvc plugin request protocol",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "action", "plugin", "project"],
+  "properties": {
+    "protocol_version": {"const": 1},
+    "action": {"enum": ["validate", "contribute"]},
+    "plugin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"type": "string"},
+        "version": {"type": "string"}
+      }
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "name", "module", "preset", "features", "dry_run"],
+      "properties": {
+        "root": {"type": "string"},
+        "name": {"type": "string"},
+        "module": {"type": "string"},
+        "preset": {"type": "string"},
+        "features": {"type": "array", "items": {"type": "string"}},
+        "dry_run": {"type": "boolean"}
+      }
+    }
+  }
+}

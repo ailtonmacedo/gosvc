@@ -1,0 +1,28 @@
+-- name: CreateOrder :one
+INSERT INTO orders (status, total_cents)
+VALUES ($1, $2)
+RETURNING id, status, total_cents, created_at, updated_at;
+
+-- name: GetOrder :one
+SELECT id, status, total_cents, created_at, updated_at
+FROM orders
+WHERE id = $1;
+
+-- name: ListOrders :many
+SELECT id, status, total_cents, created_at, updated_at
+FROM orders
+ORDER BY id
+LIMIT $1 OFFSET $2;
+
+-- name: UpdateOrder :one
+UPDATE orders
+SET status = $2,
+    total_cents = $3,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, status, total_cents, created_at, updated_at;
+
+-- name: DeleteOrder :one
+DELETE FROM orders
+WHERE id = $1
+RETURNING id;

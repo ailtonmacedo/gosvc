@@ -1,0 +1,8 @@
+package httpserver
+
+import (
+	"context"
+	"github.com/go-chi/chi/v5/middleware"
+)
+
+func middlewareRequestID(ctx context.Context) string { return middleware.GetReqID(ctx) }

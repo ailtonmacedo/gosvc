@@ -1,0 +1,3 @@
+package postgres
+import("context";"fmt";"gorm.io/gorm")
+func WithinTransaction(ctx context.Context,pool *Pool,fn func(*gorm.DB)error)error{if err:=pool.DB.WithContext(ctx).Transaction(fn);err!=nil{return fmt.Errorf("transaction: %w",err)};return nil}

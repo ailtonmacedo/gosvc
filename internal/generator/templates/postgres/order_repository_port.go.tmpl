@@ -1,0 +1,15 @@
+package ports
+
+import (
+	"context"
+
+	"{{.Config.Project.Module}}/internal/domain"
+)
+
+type OrderRepository interface {
+	Create(context.Context, domain.Order) (domain.Order, error)
+	GetByID(context.Context, int64) (domain.Order, error)
+	List(context.Context, int32, int32) ([]domain.Order, error)
+	Update(context.Context, domain.Order) (domain.Order, error)
+	Delete(context.Context, int64) error
+}

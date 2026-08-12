@@ -1,0 +1,32 @@
+package application
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+
+	"{{.Config.Project.Module}}/internal/domain"
+)
+
+type fakeAuthRepo struct { user domain.AuthUser; findErr, createErr, rotateErr, revokeErr error }
+func (f fakeAuthRepo) FindUserByEmail(context.Context,string)(domain.AuthUser,error){return f.user,f.findErr}
+func (f fakeAuthRepo) CreateSession(context.Context,domain.AuthSession)error{return f.createErr}
+func (f fakeAuthRepo) RotateSession(context.Context,[]byte,domain.AuthSession)(domain.AuthUser,error){return f.user,f.rotateErr}
+func (f fakeAuthRepo) RevokeSession(context.Context,[]byte)error{return f.revokeErr}
+type fakePasswords struct{ err error }; func(f fakePasswords)Compare(string,string)error{return f.err}
+type fakeTokens struct{ hashErr, newErr, issueErr error }
+func(f fakeTokens)IssueAccessToken(domain.AuthUser)(string,time.Time,error){return "access",time.Now().Add(time.Minute),f.issueErr}
+func(f fakeTokens)ParseAccessToken(string)(domain.Principal,error){return domain.Principal{},nil}
+func(f fakeTokens)NewRefreshToken()(string,[]byte,error){return "refresh",[]byte("hash"),f.newErr}
+func(f fakeTokens)HashRefreshToken(string)([]byte,error){return []byte("hash"),f.hashErr}
+func TestAuthService(t *testing.T){t.Parallel();user:=domain.AuthUser{ID:uuid.New(),Email:"user@example.com",PasswordHash:"hash",Active:true};
+	t.Run("login",func(t *testing.T){svc:=NewAuthService(fakeAuthRepo{user:user},fakePasswords{},fakeTokens{},time.Hour);pair,err:=svc.Login(context.Background(),user.Email,"password");if err!=nil||pair.AccessToken==""{t.Fatalf("pair=%+v err=%v",pair,err)}})
+	t.Run("invalid credentials",func(t *testing.T){svc:=NewAuthService(fakeAuthRepo{user:user},fakePasswords{err:errors.New("bad")},fakeTokens{},time.Hour);if !errors.Is(mustLoginErr(svc),domain.ErrInvalidCredentials){t.Fatal("expected invalid credentials")}})
+	t.Run("refresh",func(t *testing.T){svc:=NewAuthService(fakeAuthRepo{user:user},fakePasswords{},fakeTokens{},time.Hour);if _,err:=svc.Refresh(context.Background(),"refresh");err!=nil{t.Fatal(err)}})
+	t.Run("logout",func(t *testing.T){svc:=NewAuthService(fakeAuthRepo{},fakePasswords{},fakeTokens{},time.Hour);if err:=svc.Logout(context.Background(),"refresh");err!=nil{t.Fatal(err)}})
+	t.Run("logout invalid token",func(t *testing.T){svc:=NewAuthService(fakeAuthRepo{},fakePasswords{},fakeTokens{hashErr:errors.New("invalid")},time.Hour);if !errors.Is(svc.Logout(context.Background(),"bad"),domain.ErrInvalidRefreshToken){t.Fatal("expected invalid refresh token")}})
+}
+func mustLoginErr(s *AuthService)error{_,err:=s.Login(context.Background(),"user@example.com","bad");return err}

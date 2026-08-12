@@ -1,0 +1,126 @@
+schema_version: {{.Config.SchemaVersion}}
+
+project:
+  name: {{.Config.Project.Name}}
+  module: {{.Config.Project.Module}}
+  preset: {{.Config.Project.Preset}}
+  preset_version: {{.Preset.Version}}
+
+runtime:
+  go:
+    language: {{.GoVersion}}
+{{if .GoToolchain}}    toolchain: {{.GoToolchain}}
+{{end}}
+architecture:
+  type: {{.Config.Architecture.Type}}
+  layout: {{.Config.Architecture.Layout}}
+
+api:
+  enabled: {{.Config.API.Enabled}}
+  router: {{.Config.API.Router}}
+  port: {{.Config.API.Port}}
+  read_timeout: {{.Config.API.ReadTimeout}}
+  write_timeout: {{.Config.API.WriteTimeout}}
+  idle_timeout: {{.Config.API.IdleTimeout}}
+  shutdown_timeout: {{.Config.API.ShutdownTimeout}}
+  max_body_size: {{.Config.API.MaxBodySize}}
+
+
+openapi:
+  enabled: {{.Config.OpenAPI.Enabled}}
+  source: {{.Config.OpenAPI.Source}}
+  strict_server: {{.Config.OpenAPI.StrictServer}}
+  request_validation: {{.Config.OpenAPI.RequestValidation}}
+  documentation: {{.Config.OpenAPI.Documentation}}
+
+database:
+  enabled: {{.Config.Database.Enabled}}
+  engine: {{.Config.Database.Engine}}
+  driver: {{.Config.Database.Driver}}
+  pool: {{.Config.Database.Pool}}
+  migrations: {{.Config.Database.Migrations}}
+  code_generation: {{.Config.Database.CodeGeneration}}
+
+
+auth:
+  enabled: {{.Config.Auth.Enabled}}
+  strategy: {{.Config.Auth.Strategy}}
+  access_token:
+    ttl: {{.Config.Auth.AccessToken.TTL}}
+    algorithm: {{.Config.Auth.AccessToken.Algorithm}}
+    issuer: {{.Config.Auth.AccessToken.Issuer}}
+    audience: {{.Config.Auth.AccessToken.Audience}}
+    revocation: {{.Config.Auth.AccessToken.Revocation}}
+  refresh_token:
+    ttl: {{.Config.Auth.RefreshToken.TTL}}
+    storage: {{.Config.Auth.RefreshToken.Storage}}
+    rotation: {{.Config.Auth.RefreshToken.Rotation}}
+    reuse_detection: {{.Config.Auth.RefreshToken.ReuseDetection}}
+    transport: {{.Config.Auth.RefreshToken.Transport}}
+  rbac: {{.Config.Auth.RBAC}}
+  mfa: {{.Config.Auth.MFA}}
+
+rate_limit:
+  enabled: {{.Config.RateLimit.Enabled}}
+  strategy: {{.Config.RateLimit.Strategy}}
+  requests_per_second: {{.Config.RateLimit.RequestsPerSecond}}
+  burst: {{.Config.RateLimit.Burst}}
+  key: {{.Config.RateLimit.Key}}
+  entry_ttl: {{.Config.RateLimit.EntryTTL}}
+  cleanup_interval: {{.Config.RateLimit.CleanupInterval}}
+
+cache:
+  enabled: {{.Config.Cache.Enabled}}
+  provider: {{.Config.Cache.Provider}}
+  address: {{.Config.Cache.Address}}
+  db: {{.Config.Cache.DB}}
+
+messaging:
+  enabled: {{.Config.Messaging.Enabled}}
+  provider: {{.Config.Messaging.Provider}}
+  brokers: {{.Config.Messaging.Brokers}}
+  topic_prefix: {{.Config.Messaging.TopicPrefix}}
+  consumer_group: {{.Config.Messaging.ConsumerGroup}}
+  max_retries: {{.Config.Messaging.MaxRetries}}
+  retry_backoff: {{.Config.Messaging.RetryBackoff}}
+  dlq_suffix: {{.Config.Messaging.DLQSuffix}}
+
+outbox:
+  enabled: {{.Config.Outbox.Enabled}}
+  poll_interval: {{.Config.Outbox.PollInterval}}
+  batch_size: {{.Config.Outbox.BatchSize}}
+  max_attempts: {{.Config.Outbox.MaxAttempts}}
+
+observability:
+  logging:
+    provider: {{.Config.Observability.Logging.Provider}}
+    development_format: {{.Config.Observability.Logging.DevelopmentFormat}}
+    production_format: {{.Config.Observability.Logging.ProductionFormat}}
+  metrics:
+    enabled: {{.Config.Observability.Metrics.Enabled}}
+    provider: {{.Config.Observability.Metrics.Provider}}
+    endpoint: {{.Config.Observability.Metrics.Endpoint}}
+  tracing:
+    enabled: {{.Config.Observability.Tracing.Enabled}}
+    provider: {{.Config.Observability.Tracing.Provider}}
+    exporter: {{.Config.Observability.Tracing.Exporter}}
+    endpoint: {{.Config.Observability.Tracing.Endpoint}}
+    insecure: {{.Config.Observability.Tracing.Insecure}}
+
+performance:
+  pprof:
+    enabled: {{.Config.Performance.Pprof.Enabled}}
+    address: {{.Config.Performance.Pprof.Address}}
+
+deployment:
+  docker: {{.Config.Deployment.Docker}}
+  compose: {{.Config.Deployment.Compose}}
+  kubernetes: {{.Config.Deployment.Kubernetes}}
+  namespace: {{.Config.Deployment.Namespace}}
+  replicas: {{.Config.Deployment.Replicas}}
+  runtime_image: {{.Config.Deployment.RuntimeImage}}
+  non_root: {{.Config.Deployment.NonRoot}}
+
+quality:
+  coverage:
+    minimum: {{.Config.Quality.Coverage.Minimum}}

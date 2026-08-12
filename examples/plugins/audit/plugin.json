@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "name": "audit",
+  "version": "1.0.0",
+  "description": "Example metadata-only audit plugin",
+  "minimum_gosvc_version": "1.0.0",
+  "capabilities": ["artifacts", "validation"],
+  "entrypoint": "./bin/audit"
+}

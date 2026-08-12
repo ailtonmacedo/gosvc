@@ -1,0 +1,22 @@
+package main
+
+import (
+	"context"
+	"log/slog"
+	"os"
+
+	"{{.Config.Project.Module}}/internal/bootstrap"
+)
+
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildTime = "unknown"
+)
+
+func main() {
+	if err := bootstrap.RunWorker(context.Background(), bootstrap.BuildInfo{Version: version, Commit: commit, Time: buildTime}); err != nil {
+		slog.Error("worker stopped", "error", err)
+		os.Exit(1)
+	}
+}

@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-12T20:25:38.602002402Z",
+  "presets": [
+    {
+      "preset": "bare",
+      "project": "acceptance-bare",
+      "files": 19,
+      "resources": 0,
+      "architecture_files": 2,
+      "first_generation_changes": 18,
+      "second_generation_changes": 0,
+      "checks": [
+        "initial-generation",
+        "preset-contract",
+        "project-validation",
+        "architecture-boundaries",
+        "project-idempotency"
+      ],
+      "status": "pass",
+      "duration_ms": 5
+    },
+    {
+      "preset": "event-driven-api",
+      "project": "acceptance-event-driven-api",
+      "files": 106,
+      "resources": 2,
+      "architecture_files": 16,
+      "first_generation_changes": 92,
+      "second_generation_changes": 0,
+      "resource_changes": 17,
+      "checks": [
+        "initial-generation",
+        "preset-contract",
+        "runtime-go-policy",
+        "resource-generation",
+        "resource-idempotency",
+        "project-validation",
+        "architecture-boundaries",
+        "project-idempotency"
+      ],
+      "status": "pass",
+      "duration_ms": 63
+    },
+    {
+      "preset": "minimal-api",
+      "project": "acceptance-minimal-api",
+      "files": 21,
+      "resources": 0,
+      "architecture_files": 2,
+      "first_generation_changes": 20,
+      "second_generation_changes": 0,
+      "checks": [
+        "initial-generation",
+        "preset-contract",
+        "project-validation",
+        "architecture-boundaries",
+        "project-idempotency"
+      ],
+      "status": "pass",
+      "duration_ms": 5
+    },
+    {
+      "preset": "postgres-api",
+      "project": "acceptance-postgres-api",
+      "files": 60,
+      "resources": 2,
+      "architecture_files": 10,
+      "first_generation_changes": 46,
+      "second_generation_changes": 0,
+      "resource_changes": 17,
+      "checks": [
+        "initial-generation",
+        "preset-contract",
+        "runtime-go-policy",
+        "resource-generation",
+        "resource-idempotency",
+        "project-validation",
+        "architecture-boundaries",
+        "project-idempotency"
+      ],
+      "status": "pass",
+      "duration_ms": 33
+    },
+    {
+      "preset": "production-api",
+      "project": "acceptance-production-api",
+      "files": 82,
+      "resources": 2,
+      "architecture_files": 13,
+      "first_generation_changes": 68,
+      "second_generation_changes": 0,
+      "resource_changes": 17,
+      "checks": [
+        "initial-generation",
+        "preset-contract",
+        "runtime-go-policy",
+        "resource-generation",
+        "resource-idempotency",
+        "project-validation",
+        "architecture-boundaries",
+        "project-idempotency"
+      ],
+      "status": "pass",
+      "duration_ms": 50
+    },
+    {
+      "preset": "worker",
+      "project": "acceptance-worker",
+      "files": 21,
+      "resources": 0,
+      "architecture_files": 4,
+      "first_generation_changes": 20,
+      "second_generation_changes": 0,
+      "checks": [
+        "initial-generation",
+        "preset-contract",
+        "project-validation",
+        "architecture-boundaries",
+        "project-idempotency"
+      ],
+      "status": "pass",
+      "duration_ms": 5
+    }
+  ],
+  "passed": 6,
+  "failed": 0,
+  "duration_ms": 164
+}

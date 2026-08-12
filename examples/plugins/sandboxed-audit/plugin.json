@@ -1,0 +1,17 @@
+{
+  "schema_version": 3,
+  "protocol_version": 1,
+  "name": "sandboxed-audit",
+  "version": "1.0.0",
+  "description": "Example Docker-isolated plugin manifest; replace the image digest with a real plugin image",
+  "minimum_gosvc_version": "1.1.0",
+  "capabilities": ["validation", "artifacts"],
+  "execution": {
+    "mode": "docker",
+    "docker": {
+      "image": "ghcr.io/acme/gosvc-audit@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "command": ["/plugin"],
+      "network": false
+    }
+  }
+}

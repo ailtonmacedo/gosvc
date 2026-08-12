@@ -1,0 +1,9 @@
+goos: linux
+goarch: amd64
+pkg: github.com/ailtonmacedo/gosvc/internal/generator
+cpu: INTEL(R) XEON(R) PLATINUM 8573C
+BenchmarkRenderMinimalAPI-5       	       5	   5087088 ns/op	  855838 B/op	   14380 allocs/op
+BenchmarkRenderEventDrivenAPI-5   	       5	  15493904 ns/op	 3526256 B/op	   59317 allocs/op
+BenchmarkGenerateMinimalAPI-5     	       5	   3654540 ns/op	  952510 B/op	   14884 allocs/op
+PASS
+ok  	github.com/ailtonmacedo/gosvc/internal/generator	0.154s

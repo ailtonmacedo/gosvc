@@ -1,0 +1,23 @@
+// Package bootstrap composes application dependencies and owns lifecycle.
+package bootstrap
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+
+	"{{.Config.Project.Module}}/internal/config"
+)
+
+type BuildInfo struct { Version, Commit, Time string }
+
+func Run(_ context.Context, build BuildInfo) error {
+	cfg, err := config.Load()
+	if err != nil { return fmt.Errorf("load configuration: %w", err) }
+	var handler slog.Handler = slog.NewTextHandler(os.Stdout, nil)
+	if cfg.Environment == "production" { handler = slog.NewJSONHandler(os.Stdout, nil) }
+	logger := slog.New(handler).With("service", cfg.AppName, "environment", cfg.Environment, "version", build.Version, "commit", build.Commit)
+	logger.Info("application scaffold ready", "build_time", build.Time)
+	return nil
+}

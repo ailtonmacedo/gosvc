@@ -1,0 +1,89 @@
+package httpserver
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"{{.Config.Project.Module}}/internal/domain"
+)
+
+type fakeAuthService struct {
+	pair                            domain.TokenPair
+	loginErr, refreshErr, logoutErr error
+}
+
+func (f fakeAuthService) Login(context.Context, string, string) (domain.TokenPair, error) {
+	return f.pair, f.loginErr
+}
+func (f fakeAuthService) Refresh(context.Context, string) (domain.TokenPair, error) {
+	return f.pair, f.refreshErr
+}
+func (f fakeAuthService) Logout(context.Context, string) error { return f.logoutErr }
+
+func TestAuthHandler(t *testing.T) {
+	t.Parallel()
+	pair := domain.TokenPair{AccessToken: "access", RefreshToken: "refresh", TokenType: "Bearer", ExpiresAt: time.Now()}
+	tests := []struct {
+		name, path, body, cookie string
+		service                  AuthUseCase
+		want                     int
+	}{
+		{name: "login", path: "/auth/login", body: `{"email":"user@example.com","password":"secret"}`, service: fakeAuthService{pair: pair}, want: 200},
+		{name: "bad login", path: "/auth/login", body: "{", service: fakeAuthService{}, want: 400},
+		{name: "invalid login", path: "/auth/login", body: `{"email":"user@example.com","password":"bad"}`, service: fakeAuthService{loginErr: domain.ErrInvalidCredentials}, want: 401},
+		{name: "refresh", path: "/auth/refresh", cookie: "refresh", service: fakeAuthService{pair: pair}, want: 200},
+		{name: "missing refresh", path: "/auth/refresh", service: fakeAuthService{}, want: 401},
+		{name: "logout", path: "/auth/logout", cookie: "refresh", service: fakeAuthService{}, want: 204},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			handler := NewAuthHandler(test.service, false, time.Hour)
+			request := httptest.NewRequest(http.MethodPost, test.path, strings.NewReader(test.body))
+			if test.cookie != "" {
+				request.AddCookie(&http.Cookie{Name: "refresh_token", Value: test.cookie})
+			}
+			response := httptest.NewRecorder()
+			switch test.path {
+			case "/auth/login":
+				handler.login(response, request)
+			case "/auth/refresh":
+				handler.refresh(response, request)
+			default:
+				handler.logout(response, request)
+			}
+			if response.Code != test.want {
+				t.Fatalf("status=%d want=%d body=%s", response.Code, test.want, response.Body.String())
+			}
+		})
+	}
+}
+
+type fakeTokenParser struct {
+	principal domain.Principal
+	parseErr  error
+}
+
+func (fakeTokenParser) IssueAccessToken(domain.AuthUser) (string, time.Time, error) {
+	return "", time.Time{}, nil
+}
+func (f fakeTokenParser) ParseAccessToken(string) (domain.Principal, error) {
+	return f.principal, f.parseErr
+}
+func (fakeTokenParser) NewRefreshToken() (string, []byte, error) { return "", nil, nil }
+func (fakeTokenParser) HashRefreshToken(string) ([]byte, error)  { return nil, nil }
+func TestAuthMiddlewareRejectsMissingToken(t *testing.T) {
+	t.Parallel()
+	middleware := NewAuthMiddleware(fakeTokenParser{})
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	response := httptest.NewRecorder()
+	middleware.Authenticate(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})).ServeHTTP(response, request)
+	if response.Code != 401 {
+		t.Fatalf("status=%d", response.Code)
+	}
+}

@@ -1,0 +1,115 @@
+package application
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"{{.Config.Project.Module}}/internal/domain"
+)
+
+type orderRepositoryStub struct {
+	createResult domain.Order
+	getResult    domain.Order
+	listResult   []domain.Order
+	updateResult domain.Order
+	createErr    error
+	getErr       error
+	listErr      error
+	updateErr    error
+	deleteErr    error
+}
+
+func (s orderRepositoryStub) Create(context.Context, domain.Order) (domain.Order, error) {
+	return s.createResult, s.createErr
+}
+func (s orderRepositoryStub) GetByID(context.Context, int64) (domain.Order, error) {
+	return s.getResult, s.getErr
+}
+func (s orderRepositoryStub) List(context.Context, int32, int32) ([]domain.Order, error) {
+	return s.listResult, s.listErr
+}
+func (s orderRepositoryStub) Update(context.Context, domain.Order) (domain.Order, error) {
+	return s.updateResult, s.updateErr
+}
+func (s orderRepositoryStub) Delete(context.Context, int64) error { return s.deleteErr }
+
+func TestOrderServiceCreate(t *testing.T) {
+	t.Parallel()
+	sentinel := errors.New("database unavailable")
+	tests := []struct {
+		name       string
+		status     string
+		totalCents int64
+		repository orderRepositoryStub
+		wantID     int64
+		wantErr    error
+	}{
+		{name: "success", status: "created", totalCents: 100, repository: orderRepositoryStub{createResult: domain.Order{ID: 1}}, wantID: 1},
+		{name: "empty status", status: "", totalCents: 100, wantErr: domain.ValidationError{}},
+		{name: "negative total", status: "created", totalCents: -1, wantErr: domain.ValidationError{}},
+		{name: "repository error", status: "created", totalCents: 100, repository: orderRepositoryStub{createErr: sentinel}, wantErr: sentinel},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			created, err := NewOrderService(test.repository).Create(context.Background(), test.status, test.totalCents)
+			assertServiceResult(t, created.ID, err, test.wantID, test.wantErr)
+		})
+	}
+}
+
+func TestOrderServiceOtherOperations(t *testing.T) {
+	t.Parallel()
+	sentinel := errors.New("database unavailable")
+	t.Run("get success", func(t *testing.T) {
+		value, err := NewOrderService(orderRepositoryStub{getResult: domain.Order{ID: 1}}).GetByID(context.Background(), 1)
+		assertServiceResult(t, value.ID, err, 1, nil)
+	})
+	t.Run("get error", func(t *testing.T) {
+		_, err := NewOrderService(orderRepositoryStub{getErr: sentinel}).GetByID(context.Background(), 1)
+		assertServiceResult(t, int64(0), err, 0, sentinel)
+	})
+	t.Run("list success", func(t *testing.T) {
+		values, err := NewOrderService(orderRepositoryStub{listResult: []domain.Order{ {ID: 1} }}).List(context.Background(), 10, 0)
+		if err != nil || len(values) != 1 { t.Fatalf("List() values=%v err=%v", values, err) }
+	})
+	t.Run("list error", func(t *testing.T) {
+		_, err := NewOrderService(orderRepositoryStub{listErr: sentinel}).List(context.Background(), 10, 0)
+		if !errors.Is(err, sentinel) { t.Fatalf("List() error=%v", err) }
+	})
+	t.Run("update success", func(t *testing.T) {
+		value, err := NewOrderService(orderRepositoryStub{updateResult: domain.Order{ID: 1}}).Update(context.Background(), 1, "updated", 200)
+		assertServiceResult(t, value.ID, err, 1, nil)
+	})
+	t.Run("update validation", func(t *testing.T) {
+		_, err := NewOrderService(orderRepositoryStub{}).Update(context.Background(), 1, "", 200)
+		var validation domain.ValidationError
+		if !errors.As(err, &validation) { t.Fatalf("Update() error=%v", err) }
+	})
+	t.Run("update error", func(t *testing.T) {
+		_, err := NewOrderService(orderRepositoryStub{updateErr: sentinel}).Update(context.Background(), 1, "updated", 200)
+		if !errors.Is(err, sentinel) { t.Fatalf("Update() error=%v", err) }
+	})
+	t.Run("delete success", func(t *testing.T) {
+		if err := NewOrderService(orderRepositoryStub{}).Delete(context.Background(), 1); err != nil { t.Fatal(err) }
+	})
+	t.Run("delete error", func(t *testing.T) {
+		if err := NewOrderService(orderRepositoryStub{deleteErr: sentinel}).Delete(context.Background(), 1); !errors.Is(err, sentinel) { t.Fatalf("Delete() error=%v", err) }
+	})
+}
+
+func assertServiceResult(t *testing.T, gotID int64, gotErr error, wantID int64, wantErr error) {
+	t.Helper()
+	if wantErr == nil {
+		if gotErr != nil || gotID != wantID { t.Fatalf("id=%d err=%v wantID=%d", gotID, gotErr, wantID) }
+		return
+	}
+	var validation domain.ValidationError
+	if errors.As(wantErr, &validation) {
+		if !errors.As(gotErr, &validation) { t.Fatalf("error=%v, want validation error", gotErr) }
+		return
+	}
+	if !errors.Is(gotErr, wantErr) { t.Fatalf("error=%v want=%v", gotErr, wantErr) }
+}

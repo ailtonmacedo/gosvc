@@ -1,0 +1,80 @@
+package auth
+
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+
+	"{{.Config.Project.Module}}/internal/domain"
+)
+
+type JWTManager struct {
+	secret           []byte
+	issuer, audience string
+	ttl              time.Duration
+}
+type claims struct {
+	Email string   `json:"email"`
+	Roles []string `json:"roles"`
+	jwt.RegisteredClaims
+}
+
+func NewJWTManager(secret, issuer, audience string, ttl time.Duration) (*JWTManager, error) {
+	if len(secret) < 32 {
+		return nil, errors.New("JWT secret must contain at least 32 bytes")
+	}
+	return &JWTManager{secret: []byte(secret), issuer: issuer, audience: audience, ttl: ttl}, nil
+}
+
+func (m *JWTManager) IssueAccessToken(user domain.AuthUser) (string, time.Time, error) {
+	now := time.Now()
+	expires := now.Add(m.ttl)
+	value := claims{Email: user.Email, Roles: append([]string(nil), user.Roles...), RegisteredClaims: jwt.RegisteredClaims{
+		Issuer: m.issuer, Subject: user.ID.String(), Audience: jwt.ClaimStrings{m.audience}, ExpiresAt: jwt.NewNumericDate(expires), NotBefore: jwt.NewNumericDate(now), IssuedAt: jwt.NewNumericDate(now), ID: uuid.NewString(),
+	}}
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, value).SignedString(m.secret)
+	return signed, expires, err
+}
+
+func (m *JWTManager) ParseAccessToken(raw string) (domain.Principal, error) {
+	parsed, err := jwt.ParseWithClaims(raw, &claims{}, func(token *jwt.Token) (any, error) {
+		if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
+			return nil, domain.ErrUnauthenticated
+		}
+		return m.secret, nil
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired(), jwt.WithIssuer(m.issuer), jwt.WithAudience(m.audience), jwt.WithLeeway(30*time.Second))
+	if err != nil || !parsed.Valid {
+		return domain.Principal{}, domain.ErrUnauthenticated
+	}
+	value, ok := parsed.Claims.(*claims)
+	if !ok {
+		return domain.Principal{}, domain.ErrUnauthenticated
+	}
+	userID, err := uuid.Parse(value.Subject)
+	if err != nil {
+		return domain.Principal{}, domain.ErrUnauthenticated
+	}
+	return domain.Principal{UserID: userID, Email: value.Email, Roles: append([]string(nil), value.Roles...), TokenID: value.ID}, nil
+}
+
+func (m *JWTManager) NewRefreshToken() (string, []byte, error) {
+	value := make([]byte, 32)
+	if _, err := rand.Read(value); err != nil {
+		return "", nil, err
+	}
+	raw := base64.RawURLEncoding.EncodeToString(value)
+	hash := sha256.Sum256([]byte(raw))
+	return raw, hash[:], nil
+}
+func (m *JWTManager) HashRefreshToken(raw string) ([]byte, error) {
+	if raw == "" {
+		return nil, domain.ErrInvalidRefreshToken
+	}
+	hash := sha256.Sum256([]byte(raw))
+	return hash[:], nil
+}

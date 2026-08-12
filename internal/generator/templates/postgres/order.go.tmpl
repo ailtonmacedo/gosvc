@@ -1,0 +1,21 @@
+package domain
+
+import "time"
+
+type Order struct {
+	ID         int64
+	Status     string
+	TotalCents int64
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+func NewOrder(status string, totalCents int64) (Order, error) {
+	if status == "" {
+		return Order{}, ValidationError{Field: "status", Message: "must not be empty"}
+	}
+	if totalCents < 0 {
+		return Order{}, ValidationError{Field: "total_cents", Message: "must not be negative"}
+	}
+	return Order{Status: status, TotalCents: totalCents}, nil
+}

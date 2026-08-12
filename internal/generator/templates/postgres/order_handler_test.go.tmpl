@@ -1,0 +1,55 @@
+package httpserver
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/go-chi/chi/v5"
+
+	"{{.Config.Project.Module}}/internal/domain"
+)
+
+type fakeOrderUseCase struct {
+	create domain.Order
+	get domain.Order
+	list []domain.Order
+	update domain.Order
+	createErr error
+	getErr error
+	listErr error
+	updateErr error
+	deleteErr error
+}
+func (f fakeOrderUseCase) Create(context.Context,string,int64)(domain.Order,error){return f.create,f.createErr}
+func (f fakeOrderUseCase) GetByID(context.Context,int64)(domain.Order,error){return f.get,f.getErr}
+func (f fakeOrderUseCase) List(context.Context,int32,int32)([]domain.Order,error){return f.list,f.listErr}
+func (f fakeOrderUseCase) Update(context.Context,int64,string,int64)(domain.Order,error){return f.update,f.updateErr}
+func (f fakeOrderUseCase) Delete(context.Context,int64)error{return f.deleteErr}
+
+func TestOrderHandler(t *testing.T) {
+	t.Parallel()
+	internal := errors.New("internal")
+	tests := []struct{name,method,path,body string;service OrderUseCase;want int}{
+		{name:"create",method:http.MethodPost,path:"/orders",body:`{"status":"created","total_cents":100}`,service:fakeOrderUseCase{create:domain.Order{ID:1}},want:http.StatusCreated},
+		{name:"create invalid json",method:http.MethodPost,path:"/orders",body:`{`,service:fakeOrderUseCase{},want:http.StatusBadRequest},
+		{name:"create validation",method:http.MethodPost,path:"/orders",body:`{"status":"","total_cents":100}`,service:fakeOrderUseCase{createErr:domain.ValidationError{Field:"status",Message:"required"}},want:http.StatusUnprocessableEntity},
+		{name:"create internal",method:http.MethodPost,path:"/orders",body:`{"status":"created","total_cents":100}`,service:fakeOrderUseCase{createErr:internal},want:http.StatusInternalServerError},
+		{name:"list",method:http.MethodGet,path:"/orders?limit=10&offset=1",service:fakeOrderUseCase{list:[]domain.Order{ {ID:1} }},want:http.StatusOK},
+		{name:"invalid limit",method:http.MethodGet,path:"/orders?limit=0",service:fakeOrderUseCase{},want:http.StatusBadRequest},
+		{name:"invalid offset",method:http.MethodGet,path:"/orders?offset=-1",service:fakeOrderUseCase{},want:http.StatusBadRequest},
+		{name:"list error",method:http.MethodGet,path:"/orders",service:fakeOrderUseCase{listErr:internal},want:http.StatusInternalServerError},
+		{name:"get",method:http.MethodGet,path:"/orders/1",service:fakeOrderUseCase{get:domain.Order{ID:1}},want:http.StatusOK},
+		{name:"invalid id",method:http.MethodGet,path:"/orders/nope",service:fakeOrderUseCase{},want:http.StatusBadRequest},
+		{name:"not found",method:http.MethodGet,path:"/orders/99",service:fakeOrderUseCase{getErr:errors.Join(errors.New("get"),domain.ErrOrderNotFound)},want:http.StatusNotFound},
+		{name:"update",method:http.MethodPut,path:"/orders/1",body:`{"status":"updated","total_cents":200}`,service:fakeOrderUseCase{update:domain.Order{ID:1}},want:http.StatusOK},
+		{name:"update invalid json",method:http.MethodPut,path:"/orders/1",body:`{`,service:fakeOrderUseCase{},want:http.StatusBadRequest},
+		{name:"update not found",method:http.MethodPut,path:"/orders/1",body:`{"status":"updated","total_cents":200}`,service:fakeOrderUseCase{updateErr:domain.ErrOrderNotFound},want:http.StatusNotFound},
+		{name:"delete",method:http.MethodDelete,path:"/orders/1",service:fakeOrderUseCase{},want:http.StatusNoContent},
+		{name:"delete not found",method:http.MethodDelete,path:"/orders/1",service:fakeOrderUseCase{deleteErr:domain.ErrOrderNotFound},want:http.StatusNotFound},
+	}
+	for _,test:=range tests{test:=test;t.Run(test.name,func(t *testing.T){t.Parallel();router:=chi.NewRouter();NewOrderHandler(test.service).RegisterRoutes(router);request:=httptest.NewRequest(test.method,test.path,strings.NewReader(test.body));response:=httptest.NewRecorder();router.ServeHTTP(response,request);if response.Code!=test.want{t.Fatalf("status=%d want=%d body=%s",response.Code,test.want,response.Body.String())}})}
+}

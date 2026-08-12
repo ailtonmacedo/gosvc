@@ -1,0 +1,43 @@
+schema_version: 1
+
+project:
+  name: order-service
+  module: github.com/acme/order-service
+  preset: postgres-api
+
+runtime:
+  go:
+    language: 1.25.0
+    toolchain: go1.25.12
+
+architecture:
+  type: clean
+  layout: layered
+
+api:
+  enabled: true
+  router: chi
+  port: 8080
+  read_timeout: 10s
+  write_timeout: 15s
+  idle_timeout: 60s
+  shutdown_timeout: 10s
+  max_body_size: 1048576
+
+database:
+  enabled: true
+  engine: postgres
+  driver: pgx
+  pool: pgxpool
+  migrations: golang-migrate
+  code_generation: sqlc
+
+deployment:
+  docker: true
+  compose: true
+  runtime_image: distroless
+  non_root: true
+
+quality:
+  coverage:
+    minimum: 80

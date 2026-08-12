@@ -1,0 +1,211 @@
+// Package config loads and validates runtime configuration.
+package config
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+)
+
+type Config struct {
+	AppName       string
+	Environment   string
+	HTTP          HTTPConfig
+	Database      DatabaseConfig
+	Auth          AuthConfig
+	RateLimit     RateLimitConfig
+	Cache         CacheConfig
+	Messaging     MessagingConfig
+	Outbox        OutboxConfig
+	Observability ObservabilityConfig
+	Pprof         PprofConfig
+}
+
+type HTTPConfig struct {
+	Address string
+	ReadTimeout, WriteTimeout, IdleTimeout, ShutdownTimeout time.Duration
+	MaxBodySize int64
+}
+
+type DatabaseConfig struct {
+	Enabled bool
+	URL string
+	MaxConns, MinConns int32
+	MaxConnLifetime, MaxConnIdleTime, HealthCheckPeriod, QueryTimeout time.Duration
+}
+
+type AuthConfig struct {
+	Enabled bool
+	JWTSecret, Issuer, Audience string
+	AccessTokenTTL, RefreshTokenTTL time.Duration
+	CookieSecure bool
+	RBAC bool
+}
+
+type RateLimitConfig struct {
+	Enabled bool
+	RequestsPerSecond, Burst int
+	Key string
+	EntryTTL, CleanupInterval time.Duration
+}
+
+type CacheConfig struct {
+	Enabled bool
+	Address, Password string
+	DB int
+}
+
+type MessagingConfig struct {
+	Enabled bool
+	Brokers []string
+	TopicPrefix, ConsumerGroup, DLQSuffix string
+	MaxRetries int
+	RetryBackoff time.Duration
+}
+
+type OutboxConfig struct {
+	Enabled bool
+	PollInterval time.Duration
+	BatchSize, MaxAttempts int
+}
+
+type ObservabilityConfig struct {
+	MetricsEnabled bool
+	MetricsEndpoint string
+	TracingEnabled bool
+	OTLPEndpoint string
+	OTLPInsecure bool
+}
+
+type PprofConfig struct { Enabled bool; Address string }
+
+func Load() (Config, error) {
+	config := loadConfig()
+	return config, config.Validate()
+}
+
+// LoadWorker loads runtime configuration for the asynchronous outbox worker.
+// It validates only the capabilities the worker actually consumes, so HTTP,
+// authentication, rate limiting, cache, metrics, and pprof settings do not
+// become accidental startup dependencies for a background process.
+func LoadWorker() (Config, error) {
+	config := loadConfig()
+	return config, config.ValidateWorker()
+}
+
+func loadConfig() Config {
+	return Config{
+		AppName: envString("APP_NAME", "{{.Config.Project.Name}}"),
+		Environment: envString("APP_ENV", "development"),
+		HTTP: HTTPConfig{
+			Address: ":" + envString("HTTP_PORT", "{{.Config.API.Port}}"),
+			ReadTimeout: envDuration("HTTP_READ_TIMEOUT", {{printf "%q" .Config.API.ReadTimeout.String}}),
+			WriteTimeout: envDuration("HTTP_WRITE_TIMEOUT", {{printf "%q" .Config.API.WriteTimeout.String}}),
+			IdleTimeout: envDuration("HTTP_IDLE_TIMEOUT", {{printf "%q" .Config.API.IdleTimeout.String}}),
+			ShutdownTimeout: envDuration("HTTP_SHUTDOWN_TIMEOUT", {{printf "%q" .Config.API.ShutdownTimeout.String}}),
+			MaxBodySize: envInt64("HTTP_MAX_BODY_SIZE", {{.Config.API.MaxBodySize}}),
+		},
+		Database: DatabaseConfig{
+			Enabled: {{.Config.Database.Enabled}}, URL: strings.TrimSpace(os.Getenv("DATABASE_URL")),
+			MaxConns: envInt32("DATABASE_POOL_MAX_CONNS", 20), MinConns: envInt32("DATABASE_POOL_MIN_CONNS", 2),
+			MaxConnLifetime: envDuration("DATABASE_POOL_MAX_CONN_LIFETIME", "30m"),
+			MaxConnIdleTime: envDuration("DATABASE_POOL_MAX_CONN_IDLE_TIME", "5m"),
+			HealthCheckPeriod: envDuration("DATABASE_HEALTH_CHECK_PERIOD", "1m"),
+			QueryTimeout: envDuration("DATABASE_QUERY_TIMEOUT", "3s"),
+		},
+		Auth: AuthConfig{
+			Enabled: {{.Config.Auth.Enabled}}, JWTSecret: strings.TrimSpace(os.Getenv("JWT_SECRET")),
+			Issuer: envString("JWT_ISSUER", {{printf "%q" .Config.Auth.AccessToken.Issuer}}),
+			Audience: envString("JWT_AUDIENCE", {{printf "%q" .Config.Auth.AccessToken.Audience}}),
+			AccessTokenTTL: envDuration("JWT_ACCESS_TOKEN_TTL", {{printf "%q" .Config.Auth.AccessToken.TTL.String}}),
+			RefreshTokenTTL: envDuration("JWT_REFRESH_TOKEN_TTL", {{printf "%q" .Config.Auth.RefreshToken.TTL.String}}),
+			CookieSecure: envBool("AUTH_COOKIE_SECURE", false), RBAC: {{.Config.Auth.RBAC}},
+		},
+		RateLimit: RateLimitConfig{
+			Enabled: {{.Config.RateLimit.Enabled}}, RequestsPerSecond: envInt("RATE_LIMIT_RPS", {{.Config.RateLimit.RequestsPerSecond}}),
+			Burst: envInt("RATE_LIMIT_BURST", {{.Config.RateLimit.Burst}}), Key: envString("RATE_LIMIT_KEY", {{printf "%q" .Config.RateLimit.Key}}),
+			EntryTTL: envDuration("RATE_LIMIT_ENTRY_TTL", {{printf "%q" .Config.RateLimit.EntryTTL.String}}),
+			CleanupInterval: envDuration("RATE_LIMIT_CLEANUP_INTERVAL", {{printf "%q" .Config.RateLimit.CleanupInterval.String}}),
+		},
+		Cache: CacheConfig{Enabled: {{.Config.Cache.Enabled}}, Address: envString("REDIS_ADDRESS", {{printf "%q" .Config.Cache.Address}}), Password: os.Getenv("REDIS_PASSWORD"), DB: envInt("REDIS_DB", {{.Config.Cache.DB}})},
+		Messaging: MessagingConfig{Enabled: {{.Config.Messaging.Enabled}}, Brokers: splitCSV(envString("KAFKA_BROKERS", {{printf "%q" .Config.Messaging.Brokers}})), TopicPrefix: envString("KAFKA_TOPIC_PREFIX", {{printf "%q" .Config.Messaging.TopicPrefix}}), ConsumerGroup: envString("KAFKA_CONSUMER_GROUP", {{printf "%q" .Config.Messaging.ConsumerGroup}}), MaxRetries: envInt("KAFKA_MAX_RETRIES", {{.Config.Messaging.MaxRetries}}), RetryBackoff: envDuration("KAFKA_RETRY_BACKOFF", {{printf "%q" .Config.Messaging.RetryBackoff.String}}), DLQSuffix: envString("KAFKA_DLQ_SUFFIX", {{printf "%q" .Config.Messaging.DLQSuffix}})},
+		Outbox: OutboxConfig{Enabled: {{.Config.Outbox.Enabled}}, PollInterval: envDuration("OUTBOX_POLL_INTERVAL", {{printf "%q" .Config.Outbox.PollInterval.String}}), BatchSize: envInt("OUTBOX_BATCH_SIZE", {{.Config.Outbox.BatchSize}}), MaxAttempts: envInt("OUTBOX_MAX_ATTEMPTS", {{.Config.Outbox.MaxAttempts}})},
+		Observability: ObservabilityConfig{
+			MetricsEnabled: {{.Config.Observability.Metrics.Enabled}}, MetricsEndpoint: envString("METRICS_ENDPOINT", {{printf "%q" .Config.Observability.Metrics.Endpoint}}),
+			TracingEnabled: envBool("OTEL_TRACING_ENABLED", {{.Config.Observability.Tracing.Enabled}}),
+			OTLPEndpoint: envString("OTEL_EXPORTER_OTLP_ENDPOINT", {{printf "%q" .Config.Observability.Tracing.Endpoint}}),
+			OTLPInsecure: envBool("OTEL_EXPORTER_OTLP_INSECURE", {{.Config.Observability.Tracing.Insecure}}),
+		},
+		Pprof: PprofConfig{Enabled: envBool("PPROF_ENABLED", {{.Config.Performance.Pprof.Enabled}}), Address: envString("PPROF_ADDRESS", {{printf "%q" .Config.Performance.Pprof.Address}})},
+	}
+}
+
+func (c Config) Validate() error {
+	var errs []error
+	if strings.TrimSpace(c.AppName) == "" { errs = append(errs, errors.New("APP_NAME must not be empty")) }
+	if c.HTTP.Address == ":" { errs = append(errs, errors.New("HTTP_PORT must not be empty")) }
+	if c.HTTP.ReadTimeout <= 0 || c.HTTP.WriteTimeout <= 0 || c.HTTP.IdleTimeout <= 0 || c.HTTP.ShutdownTimeout <= 0 { errs = append(errs, errors.New("HTTP timeouts must be greater than zero")) }
+	if c.HTTP.MaxBodySize <= 0 { errs = append(errs, errors.New("HTTP_MAX_BODY_SIZE must be greater than zero")) }
+	if c.Database.Enabled {
+		if c.Database.URL == "" { errs = append(errs, errors.New("DATABASE_URL is required")) }
+		if c.Database.MaxConns <= 0 { errs = append(errs, errors.New("DATABASE_POOL_MAX_CONNS must be greater than zero")) }
+		if c.Database.MinConns < 0 || c.Database.MinConns > c.Database.MaxConns { errs = append(errs, errors.New("DATABASE_POOL_MIN_CONNS must be between zero and DATABASE_POOL_MAX_CONNS")) }
+		if c.Database.MaxConnLifetime <= 0 || c.Database.MaxConnIdleTime <= 0 || c.Database.HealthCheckPeriod <= 0 || c.Database.QueryTimeout <= 0 { errs = append(errs, errors.New("database durations must be greater than zero")) }
+	}
+	if c.Auth.Enabled {
+		if len(c.Auth.JWTSecret) < 32 { errs = append(errs, errors.New("JWT_SECRET must contain at least 32 bytes")) }
+		if c.Auth.Issuer == "" || c.Auth.Audience == "" { errs = append(errs, errors.New("JWT_ISSUER and JWT_AUDIENCE are required")) }
+		if c.Auth.AccessTokenTTL <= 0 || c.Auth.RefreshTokenTTL <= 0 { errs = append(errs, errors.New("JWT token durations must be greater than zero")) }
+	}
+	if c.RateLimit.Enabled {
+		if c.RateLimit.RequestsPerSecond <= 0 || c.RateLimit.Burst <= 0 { errs = append(errs, errors.New("rate limit and burst must be greater than zero")) }
+		if c.RateLimit.Key != "ip" && c.RateLimit.Key != "user" { errs = append(errs, errors.New("RATE_LIMIT_KEY must be ip or user")) }
+		if c.RateLimit.EntryTTL <= 0 || c.RateLimit.CleanupInterval <= 0 { errs = append(errs, errors.New("rate limit durations must be greater than zero")) }
+	}
+	if c.Cache.Enabled && strings.TrimSpace(c.Cache.Address) == "" { errs = append(errs, errors.New("REDIS_ADDRESS is required when cache is enabled")) }
+	if c.Cache.DB < 0 { errs = append(errs, errors.New("REDIS_DB must be zero or greater")) }
+	if c.Messaging.Enabled {
+		if len(c.Messaging.Brokers) == 0 { errs = append(errs, errors.New("KAFKA_BROKERS is required")) }
+		if c.Messaging.TopicPrefix == "" || c.Messaging.ConsumerGroup == "" || c.Messaging.DLQSuffix == "" { errs = append(errs, errors.New("kafka topic prefix, consumer group, and DLQ suffix are required")) }
+		if c.Messaging.MaxRetries < 0 || c.Messaging.RetryBackoff <= 0 { errs = append(errs, errors.New("kafka retry configuration is invalid")) }
+	}
+	if c.Outbox.Enabled && (c.Outbox.PollInterval <= 0 || c.Outbox.BatchSize <= 0 || c.Outbox.MaxAttempts <= 0) { errs = append(errs, errors.New("outbox configuration must be greater than zero")) }
+	if c.Observability.MetricsEnabled && !strings.HasPrefix(c.Observability.MetricsEndpoint, "/") { errs = append(errs, errors.New("METRICS_ENDPOINT must start with /")) }
+	if c.Observability.TracingEnabled && c.Observability.OTLPEndpoint == "" { errs = append(errs, errors.New("OTEL_EXPORTER_OTLP_ENDPOINT is required when tracing is enabled")) }
+	if c.Pprof.Enabled && c.Pprof.Address == "" { errs = append(errs, errors.New("PPROF_ADDRESS is required when pprof is enabled")) }
+	return errors.Join(errs...)
+}
+
+
+// ValidateWorker validates only configuration required by cmd/worker.
+// The worker owns the database -> outbox -> Kafka path and intentionally does
+// not depend on API-only settings such as JWT secrets or HTTP configuration.
+func (c Config) ValidateWorker() error {
+	var errs []error
+	if strings.TrimSpace(c.AppName) == "" { errs = append(errs, errors.New("APP_NAME must not be empty")) }
+	if c.Database.Enabled {
+		if c.Database.URL == "" { errs = append(errs, errors.New("DATABASE_URL is required")) }
+		if c.Database.MaxConns <= 0 { errs = append(errs, errors.New("DATABASE_POOL_MAX_CONNS must be greater than zero")) }
+		if c.Database.MinConns < 0 || c.Database.MinConns > c.Database.MaxConns { errs = append(errs, errors.New("DATABASE_POOL_MIN_CONNS must be between zero and DATABASE_POOL_MAX_CONNS")) }
+		if c.Database.MaxConnLifetime <= 0 || c.Database.MaxConnIdleTime <= 0 || c.Database.HealthCheckPeriod <= 0 || c.Database.QueryTimeout <= 0 { errs = append(errs, errors.New("database durations must be greater than zero")) }
+	}
+	if c.Messaging.Enabled {
+		if len(c.Messaging.Brokers) == 0 { errs = append(errs, errors.New("KAFKA_BROKERS is required")) }
+		if c.Messaging.TopicPrefix == "" || c.Messaging.ConsumerGroup == "" || c.Messaging.DLQSuffix == "" { errs = append(errs, errors.New("kafka topic prefix, consumer group, and DLQ suffix are required")) }
+		if c.Messaging.MaxRetries < 0 || c.Messaging.RetryBackoff <= 0 { errs = append(errs, errors.New("kafka retry configuration is invalid")) }
+	}
+	if c.Outbox.Enabled && (c.Outbox.PollInterval <= 0 || c.Outbox.BatchSize <= 0 || c.Outbox.MaxAttempts <= 0) { errs = append(errs, errors.New("outbox configuration must be greater than zero")) }
+	return errors.Join(errs...)
+}
+
+func envString(name, fallback string) string { if value := strings.TrimSpace(os.Getenv(name)); value != "" { return value }; return fallback }
+func envDuration(name, fallback string) time.Duration { value := envString(name, fallback); parsed, err := time.ParseDuration(value); if err != nil { return 0 }; return parsed }
+func envInt32(name string, fallback int32) int32 { value := envString(name, strconv.FormatInt(int64(fallback), 10)); parsed, err := strconv.ParseInt(value, 10, 32); if err != nil { return 0 }; return int32(parsed) }
+func envInt64(name string, fallback int64) int64 { value := envString(name, strconv.FormatInt(fallback, 10)); parsed, err := strconv.ParseInt(value, 10, 64); if err != nil { return 0 }; return parsed }
+func envInt(name string, fallback int) int { value := envString(name, strconv.Itoa(fallback)); parsed, err := strconv.Atoi(value); if err != nil { return 0 }; return parsed }
+func envBool(name string, fallback bool) bool { value := envString(name, strconv.FormatBool(fallback)); parsed, err := strconv.ParseBool(value); if err != nil { return false }; return parsed }
+func splitCSV(value string) []string { var items []string; for _, item := range strings.Split(value, ",") { if item = strings.TrimSpace(item); item != "" { items = append(items, item) } }; return items }
+func (c Config) String() string { return fmt.Sprintf("app=%s environment=%s http=%s database_enabled=%t auth_enabled=%t", c.AppName, c.Environment, c.HTTP.Address, c.Database.Enabled, c.Auth.Enabled) }

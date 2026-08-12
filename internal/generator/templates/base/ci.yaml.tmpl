@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install tools
+        run: make tools
+
+      - name: Verify formatting
+        run: make format-check
+
+      - name: Verify modules
+        run: make tidy-check STRICT_GIT_DRIFT=1
+{{if or .Config.OpenAPI.Enabled (and .Config.Database.Enabled (eq .Config.Database.CodeGeneration "sqlc"))}}
+      - name: Verify generated code
+        run: make generate-check STRICT_GIT_DRIFT=1
+{{end}}
+      - name: Vet
+        run: make vet
+
+      - name: Lint
+        run: make lint
+
+      - name: Unit tests and coverage
+        run: make coverage-check
+
+      - name: Build
+        run: make build
+
+  main-quality:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+{{if .Config.Database.Enabled}}
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: {{.Config.Project.Name}}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d {{.Config.Project.Name}}"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+{{end}}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install tools
+        run: make tools
+
+      - name: Race detector
+        run: make test-race
+
+      - name: Vulnerability scan
+        run: make vulncheck
+{{if .Config.Database.Enabled}}
+      - name: Run migrations
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/{{.Config.Project.Name}}?sslmode=disable
+        run: make migrate-up
+
+      - name: Integration tests
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/{{.Config.Project.Name}}?sslmode=disable
+        run: make test-integration
+{{end}}
+      - name: Docker build
+        run: make docker-build

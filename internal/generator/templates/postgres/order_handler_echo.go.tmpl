@@ -1,0 +1,32 @@
+package httpserver
+
+import (
+    "context"
+    "errors"
+    "net/http"
+    "strconv"
+
+    "github.com/labstack/echo/v4"
+    "{{.Config.Project.Module}}/internal/domain"
+)
+
+type OrderUseCase interface {
+    Create(context.Context,string,int64)(domain.Order,error)
+    GetByID(context.Context,int64)(domain.Order,error)
+    List(context.Context,int32,int32)([]domain.Order,error)
+    Update(context.Context,int64,string,int64)(domain.Order,error)
+    Delete(context.Context,int64) error
+}
+type OrderHandler struct{ service OrderUseCase }
+type orderPayload struct { Status string `json:"status"`; TotalCents int64 `json:"total_cents"` }
+func NewOrderHandler(service OrderUseCase)*OrderHandler{return &OrderHandler{service:service}}
+func(h *OrderHandler)RegisterRoutes(r *echo.Group){r.GET("/orders",h.list);r.POST("/orders",h.create);r.GET("/orders/:id",h.get);r.PUT("/orders/:id",h.update);r.DELETE("/orders/:id",h.delete)}
+func(h *OrderHandler)create(c echo.Context)error{var in orderPayload;if err:=c.Bind(&in);err!=nil{return apiError(c,400,"invalid_json","Invalid JSON body.")};v,err:=h.service.Create(c.Request().Context(),in.Status,in.TotalCents);if err!=nil{return h.writeError(c,err)};return c.JSON(201,orderResponse(v))}
+func(h *OrderHandler)list(c echo.Context)error{limit:=int32(50);offset:=int32(0);if raw:=c.QueryParam("limit");raw!=""{v,err:=strconv.ParseInt(raw,10,32);if err!=nil||v<1||v>100{return apiError(c,400,"invalid_limit","limit must be between 1 and 100")};limit=int32(v)};if raw:=c.QueryParam("offset");raw!=""{v,err:=strconv.ParseInt(raw,10,32);if err!=nil||v<0{return apiError(c,400,"invalid_offset","offset must be zero or greater")};offset=int32(v)};items,err:=h.service.List(c.Request().Context(),limit,offset);if err!=nil{return h.writeError(c,err)};out:=make([]map[string]any,0,len(items));for _,v:=range items{out=append(out,orderResponse(v))};return c.JSON(200,map[string]any{"items":out,"limit":limit,"offset":offset})}
+func(h *OrderHandler)get(c echo.Context)error{id,ok:=echoOrderID(c);if !ok{return nil};v,err:=h.service.GetByID(c.Request().Context(),id);if err!=nil{return h.writeError(c,err)};return c.JSON(200,orderResponse(v))}
+func(h *OrderHandler)update(c echo.Context)error{id,ok:=echoOrderID(c);if !ok{return nil};var in orderPayload;if err:=c.Bind(&in);err!=nil{return apiError(c,400,"invalid_json","Invalid JSON body.")};v,err:=h.service.Update(c.Request().Context(),id,in.Status,in.TotalCents);if err!=nil{return h.writeError(c,err)};return c.JSON(200,orderResponse(v))}
+func(h *OrderHandler)delete(c echo.Context)error{id,ok:=echoOrderID(c);if !ok{return nil};if err:=h.service.Delete(c.Request().Context(),id);err!=nil{return h.writeError(c,err)};return c.NoContent(204)}
+func echoOrderID(c echo.Context)(int64,bool){id,err:=strconv.ParseInt(c.Param("id"),10,64);if err!=nil||id<1{_ = apiError(c,400,"invalid_id","id must be a positive integer");return 0,false};return id,true}
+func(h *OrderHandler)writeError(c echo.Context,err error)error{var validation domain.ValidationError;switch{case errors.Is(err,domain.ErrOrderNotFound):return apiError(c,404,"order_not_found","Order not found.");case errors.As(err,&validation):return apiError(c,422,"validation_error",validation.Error());default:return apiError(c,500,"internal_error","Internal server error.")}}
+func orderResponse(v domain.Order)map[string]any{return map[string]any{"id":v.ID,"status":v.Status,"total_cents":v.TotalCents,"created_at":v.CreatedAt,"updated_at":v.UpdatedAt}}
+var _ = http.StatusOK

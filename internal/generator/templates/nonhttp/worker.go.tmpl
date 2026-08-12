@@ -1,0 +1,14 @@
+package application
+
+import "context"
+
+type Worker struct{}
+
+func NewWorker() *Worker { return &Worker{} }
+
+// Run owns background processing. Replace the blocking wait with queue, cron,
+// or stream processing while keeping transport concerns outside domain code.
+func (w *Worker) Run(ctx context.Context) error {
+	<-ctx.Done()
+	return nil
+}

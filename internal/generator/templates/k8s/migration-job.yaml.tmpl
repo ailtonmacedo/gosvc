@@ -1,0 +1,16 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{.Config.Project.Name}}-migrate
+  namespace: {{.Config.Deployment.Namespace}}
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: ghcr.io/replace/{{.Config.Project.Name}}-migrate:latest
+          args: ["-database", "$(DATABASE_URL)", "up"]
+          envFrom:
+            - secretRef: { name: {{.Config.Project.Name}}-secrets }

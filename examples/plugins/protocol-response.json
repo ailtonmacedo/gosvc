@@ -1,0 +1,21 @@
+{
+  "protocol_version": 1,
+  "diagnostics": [
+    {
+      "severity": "info",
+      "path": "project.yaml",
+      "message": "audit configuration is valid"
+    }
+  ],
+  "contribution": {
+    "features": ["plugin:audit"],
+    "artifacts": [
+      {
+        "path": "internal/audit/audit.gen.go",
+        "content": "package audit\n",
+        "mode": 420,
+        "ownership": "generated"
+      }
+    ]
+  }
+}

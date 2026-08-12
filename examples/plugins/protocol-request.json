@@ -1,0 +1,16 @@
+{
+  "protocol_version": 1,
+  "action": "validate",
+  "plugin": {
+    "name": "sandboxed-audit",
+    "version": "1.0.0"
+  },
+  "project": {
+    "root": "/workspace/project",
+    "name": "catalog-service",
+    "module": "github.com/acme/catalog-service",
+    "preset": "postgres-api",
+    "features": ["base", "postgres", "openapi"],
+    "dry_run": true
+  }
+}

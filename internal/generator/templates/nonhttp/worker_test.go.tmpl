@@ -1,0 +1,21 @@
+package application
+
+import (
+	"context"
+	"testing"
+	"time"
+)
+
+func TestWorkerStopsWithContext(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	done := make(chan error, 1)
+	go func() { done <- NewWorker().Run(ctx) }()
+	select {
+	case err := <-done:
+		if err != nil { t.Fatalf("Run() error = %v", err) }
+	case <-time.After(time.Second):
+		t.Fatal("worker did not stop")
+	}
+}

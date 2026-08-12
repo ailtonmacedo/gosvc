@@ -1,0 +1,17 @@
+package postgres
+
+import (
+    "context"
+    "database/sql"
+    "fmt"
+
+    "gorm.io/driver/postgres"
+    "gorm.io/gorm"
+
+    "{{.Config.Project.Module}}/internal/config"
+)
+
+type Pool struct { DB *gorm.DB; sqlDB *sql.DB }
+func OpenPool(ctx context.Context, cfg config.DatabaseConfig)(*Pool,error){db,err:=gorm.Open(postgres.Open(cfg.URL),&gorm.Config{});if err!=nil{return nil,fmt.Errorf("open PostgreSQL: %w",err)};sqlDB,err:=db.DB();if err!=nil{return nil,fmt.Errorf("resolve database/sql pool: %w",err)};sqlDB.SetMaxOpenConns(int(cfg.MaxConns));sqlDB.SetMaxIdleConns(int(cfg.MinConns));sqlDB.SetConnMaxLifetime(cfg.MaxConnLifetime);sqlDB.SetConnMaxIdleTime(cfg.MaxConnIdleTime);if err:=sqlDB.PingContext(ctx);err!=nil{_ = sqlDB.Close();return nil,fmt.Errorf("ping PostgreSQL: %w",err)};return &Pool{DB:db,sqlDB:sqlDB},nil}
+func(p *Pool)Ping(ctx context.Context)error{return p.sqlDB.PingContext(ctx)}
+func(p *Pool)Close(){_ = p.sqlDB.Close()}
